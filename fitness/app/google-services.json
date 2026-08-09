@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "896777760682",
+    "project_id": "gamenudges",
+    "storage_bucket": "gamenudges.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:896777760682:android:4d5705688331d8d38fc5d3",
+        "android_client_info": {
+          "package_name": "com.example.genfitness"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "896777760682-he69a114qoprktpcpo9q705ni7vle0us.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.genfitness",
+            "certificate_hash": "c28f893192287e7983fb723d801b21c17b67ad97"
+          }
+        },
+        {
+          "client_id": "896777760682-78v13q77e8u2iseqboejq1g7nro70n0e.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBTnMNgQ_3YcXpmPFsC4Km3w4GPpDMp_bQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "896777760682-78v13q77e8u2iseqboejq1g7nro70n0e.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

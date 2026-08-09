@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -15,6 +16,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,6 +38,9 @@ import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.StepsRecord
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.genfitness.ui.theme.GenfitnessTheme
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FieldValue
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.collectLatest
 
 class MainActivity : ComponentActivity() {
@@ -45,39 +50,45 @@ class MainActivity : ComponentActivity() {
         setContent {
             GenfitnessTheme {
                 val context = LocalContext.current
-                
-                // Pedir permissão de notificações no Android 13+
-                val launcherNotificacao = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.RequestPermission()
-                ) { _ -> }
+                val authViewModel: AuthViewModel = viewModel()
+                val user by authViewModel.user.collectAsState()
 
-                LaunchedEffect(Unit) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                        launcherNotificacao.launch(Manifest.permission.POST_NOTIFICATIONS)
+                if (user == null) {
+                    LoginScreen(authViewModel)
+                } else {
+                    // Pedir permissão de notificações no Android 13+
+                    val launcherNotificacao = rememberLauncherForActivityResult(
+                        contract = ActivityResultContracts.RequestPermission()
+                    ) { _ -> }
+
+                    LaunchedEffect(Unit) {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            launcherNotificacao.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        }
                     }
-                }
-                
-                // Check Health Connect availability
-                val sdkStatus = remember { 
-                    HealthConnectClient.getSdkStatus(context) 
-                }
-                
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF0F172A)
-                ) {
-                    if (sdkStatus == HealthConnectClient.SDK_AVAILABLE) {
-                        val healthConnectClient = remember { 
-                            HealthConnectClient.getOrCreate(context) 
-                        }
-                        
-                        val viewModel: HealthViewModel = viewModel {
-                            HealthViewModel(healthConnectClient)
-                        }
+                    
+                    // Check Health Connect availability
+                    val sdkStatus = remember { 
+                        HealthConnectClient.getSdkStatus(context) 
+                    }
+                    
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = Color(0xFF0F172A)
+                    ) {
+                        if (sdkStatus == HealthConnectClient.SDK_AVAILABLE) {
+                            val healthConnectClient = remember { 
+                                HealthConnectClient.getOrCreate(context) 
+                            }
+                            
+                            val viewModel: HealthViewModel = viewModel {
+                                HealthViewModel(healthConnectClient)
+                            }
 
-                        EcraGenfitness(viewModel)
-                    } else {
-                        HealthConnectUnavailableScreen(sdkStatus)
+                            EcraGenfitness(viewModel, authViewModel)
+                        } else {
+                            HealthConnectUnavailableScreen(sdkStatus)
+                        }
                     }
                 }
             }
@@ -87,9 +98,10 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun EcraGenfitness(viewModel: HealthViewModel) {
+fun EcraGenfitness(viewModel: HealthViewModel, authViewModel: AuthViewModel) {
     val context = LocalContext.current
     val passos by viewModel.passos.collectAsState()
+    val user by authViewModel.user.collectAsState()
     
     // Define qual é a permissão que queremos (Ler Passos)
     val permissoesHealthConnect = setOf(
@@ -99,6 +111,13 @@ fun EcraGenfitness(viewModel: HealthViewModel) {
     // Atualização automática ao iniciar
     LaunchedEffect(Unit) {
         viewModel.carregarPassos()
+    }
+
+    // Registo automático de visita quando os passos mudam e o utilizador está logado
+    LaunchedEffect(passos) {
+        if (passos > 0 && user != null) {
+            registerUserVisit(user?.email ?: "desconhecido", passos)
+        }
     }
 
     // Escutar o objetivo atingido
@@ -133,6 +152,15 @@ fun EcraGenfitness(viewModel: HealthViewModel) {
                         letterSpacing = 1.sp,
                         color = Color.White
                     ) 
+                },
+                actions = {
+                    IconButton(onClick = { authViewModel.logout(context) }) {
+                        Icon(
+                            imageVector = Icons.Default.Logout,
+                            contentDescription = "Sair",
+                            tint = Color.White
+                        )
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
@@ -188,6 +216,25 @@ fun EcraGenfitness(viewModel: HealthViewModel) {
             }
         }
     }
+}
+
+private fun registerUserVisit(email: String, steps: Long) {
+    val db = FirebaseFirestore.getInstance()
+    val visitData = hashMapOf(
+        "email" to email,
+        "steps" to steps,
+        "timestamp" to FieldValue.serverTimestamp()
+    )
+
+    db.collection("user_visits")
+        .document(email) // Usa o email como ID único para atualizar a mesma entrada
+        .set(visitData)
+        .addOnSuccessListener {
+            Log.d("Genfitness", "Visita registada/atualizada com sucesso!")
+        }
+        .addOnFailureListener { e ->
+            Log.e("Genfitness", "Erro ao registar visita", e)
+        }
 }
 
 @Composable
