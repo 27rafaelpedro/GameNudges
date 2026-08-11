@@ -32,6 +32,11 @@ bin/
 
 run/
 
+# firebase — NUNCA versionar credenciais de service account
+
+serviceAccountKey.json
+**/serviceAccountKey.json
+
 # java
 
 hs_err_*.log

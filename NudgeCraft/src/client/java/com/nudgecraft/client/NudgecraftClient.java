@@ -1,4 +1,4 @@
-package com.example.client;
+package com.nudgecraft.client;
 
 import net.fabricmc.api.ClientModInitializer;
 

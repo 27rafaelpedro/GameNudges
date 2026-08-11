@@ -1,6 +1,10 @@
-package com.example;
+package com.nudgecraft;
+
+import com.nudgecraft.command.ModCommands;
+import com.nudgecraft.firebase.FirebaseManager;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 
 import net.minecraft.resources.Identifier;
 
@@ -8,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class Nudgecraft implements ModInitializer {
+	// Tem de coincidir com o "id" do fabric.mod.json e ser um namespace válido ([a-z0-9_.-]).
 	public static final String MOD_ID = "nudgecraft";
 
 	// This logger is used to write text to the console and the log file.
@@ -17,11 +22,13 @@ public class Nudgecraft implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
-		// This code runs as soon as Minecraft is in a mod-load-ready state.
-		// However, some things (like resources) may still be uninitialized.
-		// Proceed with mild caution.
+		ModCommands.registar();
 
-		LOGGER.info("Hello Fabric world!");
+		// O Firebase só é preciso do lado do servidor (inclui o servidor integrado do singleplayer).
+		ServerLifecycleEvents.SERVER_STARTING.register(server -> FirebaseManager.init());
+		ServerLifecycleEvents.SERVER_STOPPED.register(server -> FirebaseManager.shutdown());
+
+		LOGGER.info("[Nudgecraft] Mod inicializado.");
 	}
 
 	public static Identifier id(String path) {

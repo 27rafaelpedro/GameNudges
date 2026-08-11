@@ -3,12 +3,12 @@ plugins {
 	id 'maven-publish'
 }
 
+version = project.version
+group = project.maven_group
+
 repositories {
-	// Add repositories to retrieve artifacts from in here.
-	// You should only use this when depending on other mods because
-	// Loom adds the essential maven repositories to download Minecraft and libraries from automatically.
-	// See https://docs.gradle.org/current/userguide/declaring_repositories.html
-	// for more information about repositories.
+	mavenCentral()
+	// O Loom acrescenta automaticamente o maven da Fabric (maven.fabricmc.net).
 }
 
 loom {
@@ -22,13 +22,49 @@ loom {
 	}
 }
 
-dependencies {
-	// To change the versions see the gradle.properties file
-	minecraft "com.mojang:minecraft:${project.minecraft_version}"
-	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+// Configuração auxiliar: serve para resolver o grafo completo de dependências do
+// Firebase Admin SDK. O `include` do Loom só embute o artefacto indicado, não as
+// suas transitivas — sem isto o mod rebenta com NoClassDefFoundError em runtime.
+configurations {
+	firebaseLib
+	implementation.extendsFrom firebaseLib
+}
 
-	// Fabric API. This is technically optional, but you probably want it anyway.
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+
+	// O Minecraft 26.2 é distribuído já não-ofuscado: não se declaram mappings.
+	// Os nomes das classes são os oficiais da Mojang (ServerPlayer, Component, Commands, ...).
+
+	// Sem ofuscação não existem as configurações `mod*` do Loom — usa-se `implementation`.
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Firebase Admin SDK
+	firebaseLib("com.google.firebase:firebase-admin:${project.firebase_version}") {
+		// Jar vazio e com uma versão que o Fabric Loader não consegue interpretar.
+		exclude group: 'com.google.guava', module: 'listenablefuture'
+	}
+}
+
+// Embute (jar-in-jar) o Firebase Admin SDK e todas as suas transitivas.
+afterEvaluate {
+	def incluidos = [] as Set
+
+	configurations.firebaseLib.resolvedConfiguration.resolvedArtifacts.each { artifact ->
+		if (artifact.extension != 'jar') {
+			return
+		}
+
+		def id = artifact.moduleVersion.id
+		def coordenadas = "${id.group}:${id.name}:${id.version}"
+
+		if (incluidos.add(coordenadas)) {
+			dependencies.add('include', coordenadas)
+		}
+	}
+
+	logger.lifecycle("[Nudgecraft] ${incluidos.size()} jars embutidos para o Firebase Admin SDK.")
 }
 
 processResources {
@@ -41,15 +77,12 @@ processResources {
 }
 
 tasks.withType(JavaCompile).configureEach {
+	it.options.encoding = "UTF-8"
 	it.options.release = 25
 }
 
 java {
-	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
-	// if it is present.
-	// If you remove this line, sources will not be generated.
 	withSourcesJar()
-
 	sourceCompatibility = JavaVersion.VERSION_25
 	targetCompatibility = JavaVersion.VERSION_25
 }
@@ -63,19 +96,10 @@ jar {
 	}
 }
 
-// configure the maven publication
 publishing {
 	publications {
 		create("mavenJava", MavenPublication) {
 			from components.java
 		}
-	}
-
-	// See https://docs.gradle.org/current/userguide/publishing_maven.html for information on how to set up publishing.
-	repositories {
-		// Add repositories to publish to here.
-		// Notice: This block does NOT have the same function as the block in the top level.
-		// The repositories here will be used for publishing your artifact, not for
-		// retrieving dependencies.
 	}
 }

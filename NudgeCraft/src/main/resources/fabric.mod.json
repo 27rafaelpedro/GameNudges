@@ -16,10 +16,10 @@
 	"environment": "*",
 	"entrypoints": {
 		"main": [
-			"com.example.Nudgecraft"
+			"com.nudgecraft.Nudgecraft"
 		],
 		"client": [
-			"com.example.client.NudgecraftClient"
+			"com.nudgecraft.client.NudgecraftClient"
 		]
 	},
 	"mixins": [
