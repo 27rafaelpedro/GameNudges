@@ -54,6 +54,9 @@ dependencies {
     implementation("androidx.health.connect:connect-client:1.1.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
     
+    // WorkManager
+    implementation(libs.androidx.work.runtime)
+    
     // Firebase
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.firestore)
