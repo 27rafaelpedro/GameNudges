@@ -34,30 +34,55 @@ public final class StepsManager {
                 return;
             }
 
+            // limit(2) obtém o registo mais recente (índice 0) e o anterior (índice 1)
             Query query = db.collection("user_visits")
                     .whereEqualTo("email", email)
-                    .orderBy("timestamp", Query.Direction.DESCENDING)
-                    .limit(1);
+                    .orderBy("date", Query.Direction.DESCENDING)
+                    .limit(2);
 
             ApiFuture<QuerySnapshot> future = query.get();
 
             future.addListener(() -> {
                 try {
                     QuerySnapshot snapshot = future.get();
+                    var docs = snapshot.getDocuments();
 
-                    if (snapshot.isEmpty()) {
+                    if (docs.isEmpty()) {
                         LinkedAccounts.erro(player, server, "Nenhum registo de passos encontrado. Tenta novamente mais tarde.");
                         return;
                     }
 
-                    Long steps = snapshot.getDocuments().get(0).getLong("steps");
+                    // Dia mais recente (índice 0)
+                    var docHoje = docs.get(0);
+                    Long stepsHoje = docHoje.getLong("steps");
+                    String dateHoje = docHoje.getString("date");
 
-                    if (steps == null) {
+                    if (stepsHoje == null) {
                         LinkedAccounts.erro(player, server, "O último registo não tem contagem de passos.");
                         return;
                     }
 
-                    LinkedAccounts.sucesso(player, server, "Passos hoje: " + steps);
+                    String dataHojeTexto = (dateHoje != null) ? dateHoje : "Hoje";
+
+                    // Se existir o 2º documento (dia anterior)
+                    if (docs.size() >= 2) {
+                        var docOntem = docs.get(1);
+                        Long stepsOntem = docOntem.getLong("steps");
+                        String dateOntem = docOntem.getString("date");
+
+                        if (stepsOntem != null) {
+                            String dataOntemTexto = (dateOntem != null) ? dateOntem : "Anterior";
+
+                            LinkedAccounts.sucesso(player, server,
+                                    "Passos (" + dataHojeTexto + "): " + stepsHoje +
+                                            " | Passos (" + dataOntemTexto + "): " + stepsOntem);
+                            return;
+                        }
+                    }
+
+                    // Caso seja o primeiro dia e ainda não exista o dia anterior
+                    LinkedAccounts.sucesso(player, server, "Passos (" + dataHojeTexto + "): " + stepsHoje);
+
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 } catch (Exception e) {
@@ -67,4 +92,4 @@ public final class StepsManager {
             }, FirebaseManager.FIREBASE_EXECUTOR);
         });
     }
-}
+    }

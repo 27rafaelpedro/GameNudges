@@ -4,6 +4,7 @@ import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.QuerySnapshot;
+import com.nudgecraft.Karma.KarmaState;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -92,7 +93,11 @@ public final class LinkedAccounts {
                 // tudo ok -> gravar ligação
                 Map<String, Object> data = new HashMap<>();
                 data.put("email", email);
-                data.put("linkedAt", System.currentTimeMillis());
+                data.put("goal", 0L);
+                data.put("karma", KarmaState.BASE.name());
+                data.put("lastProcessedVisitDate", null);
+                data.put("lastProcessedGoal", null);
+                data.put("karmaBeforeLastProcessedVisit", KarmaState.BASE.name());
                 data.put("playerName", player.getGameProfile().name());
 
                 db.collection("linked_accounts").document(uuid).set(data).get();

@@ -2,6 +2,8 @@ package com.nudgecraft.command;
 
 import com.mojang.brigadier.arguments.StringArgumentType;
 
+import com.mojang.brigadier.context.CommandContext;
+import com.nudgecraft.Karma.KarmaCalculator;
 import com.nudgecraft.firebase.FirebaseManager;
 import com.nudgecraft.firebase.LinkedAccounts;
 import com.nudgecraft.firebase.StepsManager;
@@ -39,6 +41,13 @@ public final class ModCommands {
                     .executes(ctx -> {
                         ServerPlayer player = ctx.getSource().getPlayerOrException();
                         StepsManager.buscarSteps(player);
+                        return 1;
+                    }));
+
+            dispatcher.register(Commands.literal("karma")
+                    .executes(ctx -> {
+                        ServerPlayer player = ctx.getSource().getPlayerOrException();
+                        KarmaCalculator.calculate(player);
                         return 1;
                     }));
 
