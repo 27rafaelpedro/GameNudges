@@ -173,7 +173,7 @@ public final class KarmaCalculator {
             if (isLogin) {
                 if (!hasYesterdayData) {
                     // Mensagem de boas-vindas para novos jogadores / sem registo de ontem
-                    player.sendSystemMessage(Component.literal("Bem-vindo ")
+                    player.sendSystemMessage(Component.literal("Bem-vindo/a ")
                             .withStyle(ChatFormatting.AQUA)
                             .append(Component.literal(username).withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD))
                             .append(Component.literal("! Este é o começo da tua aventura fitness no NudgeCraft!").withStyle(ChatFormatting.AQUA)));
