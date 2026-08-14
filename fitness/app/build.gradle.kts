@@ -49,6 +49,7 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.6.2")
+    implementation(libs.kotlinx.coroutines.play.services)
 
     // Health Connect Library
     implementation("androidx.health.connect:connect-client:1.1.0")

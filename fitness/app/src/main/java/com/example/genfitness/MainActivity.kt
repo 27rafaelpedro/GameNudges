@@ -102,9 +102,10 @@ class MainActivity : ComponentActivity() {
 
                             EcraGenfitness(viewModel, authViewModel)
                             
-                            // Agendar sincronização periódica e configurar data de instalação
+                            // Agendar sincronização periódica e configurar dados locais
                             LaunchedEffect(user) {
                                 if (user != null) {
+                                    authViewModel.initUsername(context)
                                     setupInstallationDate(context)
                                     schedulePeriodicSync(context)
                                     StepSyncWorker.scheduleMidnightWakeup(context)
@@ -126,8 +127,10 @@ fun EcraGenfitness(viewModel: HealthViewModel, authViewModel: AuthViewModel) {
     val context = LocalContext.current
     val passos by viewModel.passos.collectAsState()
     val user by authViewModel.user.collectAsState()
+    val minecraftUsername by authViewModel.minecraftUsername.collectAsState()
     
     var showBatteryDialog by remember { mutableStateOf(false) }
+    var showMinecraftDialog by remember { mutableStateOf(false) }
 
     // Define qual é a permissão que queremos (Ler Passos)
     val permissoesHealthConnect = setOf(
@@ -138,6 +141,57 @@ fun EcraGenfitness(viewModel: HealthViewModel, authViewModel: AuthViewModel) {
     // Atualização automática ao iniciar
     LaunchedEffect(Unit) {
         viewModel.carregarPassos()
+    }
+
+    // Verificar se precisa de configurar username do Minecraft
+    LaunchedEffect(user, minecraftUsername) {
+        if (user != null && minecraftUsername == null) {
+            showMinecraftDialog = true
+        }
+    }
+
+    if (showMinecraftDialog) {
+        var tempUsername by remember { mutableStateOf("") }
+        var errorMessage by remember { mutableStateOf<String?>(null) }
+
+        AlertDialog(
+            onDismissRequest = { /* Não permite fechar sem inserir */ },
+            title = { Text("Username do Minecraft") },
+            text = {
+                Column {
+                    Text("Insere o teu nome no jogo para sincronizares os teus passos com o servidor.")
+                    Spacer(modifier = Modifier.height(16.dp))
+                    TextField(
+                        value = tempUsername,
+                        onValueChange = { tempUsername = it },
+                        label = { Text("Minecraft Username") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    errorMessage?.let {
+                        Text(text = it, color = Color.Red, fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    if (tempUsername.isNotBlank()) {
+                        authViewModel.saveMinecraftUsername(
+                            context,
+                            tempUsername,
+                            onSuccess = { showMinecraftDialog = false }
+                        )
+                    } else {
+                        errorMessage = "O nome não pode estar vazio"
+                    }
+                }) {
+                    Text("Guardar")
+                }
+            },
+            containerColor = Color(0xFF1E293B),
+            titleContentColor = Color.White,
+            textContentColor = Color(0xFF94A3B8)
+        )
     }
 
     // Verificar bateria e mostrar popup se necessário
@@ -178,9 +232,9 @@ fun EcraGenfitness(viewModel: HealthViewModel, authViewModel: AuthViewModel) {
     }
 
     // Registo automático de visita quando os passos mudam e o utilizador está logado
-    LaunchedEffect(passos) {
-        if (passos > 0 && user != null) {
-            registerUserVisit(user?.email ?: "desconhecido", passos)
+    LaunchedEffect(passos, minecraftUsername) {
+        if (passos > 0 && user != null && minecraftUsername != null) {
+            registerUserVisit(user?.email ?: "desconhecido", passos, minecraftUsername ?: "")
         }
     }
 
@@ -282,13 +336,14 @@ fun EcraGenfitness(viewModel: HealthViewModel, authViewModel: AuthViewModel) {
     }
 }
 
-private fun registerUserVisit(email: String, steps: Long) {
+private fun registerUserVisit(email: String, steps: Long, mcUsername: String) {
     val db = FirebaseFirestore.getInstance()
     val dataHoje = LocalDate.now().toString()
-    val docId = "${email}_$dataHoje"
+    val docId = "${mcUsername}_$dataHoje"
 
     val visitData = hashMapOf(
         "email" to email,
+        "minecraft_username" to mcUsername,
         "steps" to steps,
         "timestamp" to FieldValue.serverTimestamp(),
         "date" to dataHoje

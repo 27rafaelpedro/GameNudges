@@ -1,13 +1,11 @@
 package com.nudgecraft.command;
 
+import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
-
-import com.mojang.brigadier.context.CommandContext;
 import com.nudgecraft.Karma.KarmaCalculator;
 import com.nudgecraft.firebase.FirebaseManager;
-import com.nudgecraft.firebase.LinkedAccounts;
+import com.nudgecraft.firebase.PlayerProfileManager;
 import com.nudgecraft.firebase.StepsManager;
-
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -21,22 +19,7 @@ public final class ModCommands {
     public static void registar() {
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
 
-            // /linkemail <email> — greedyString porque word() não aceita '@'
-            dispatcher.register(Commands.literal("linkemail")
-                    .then(Commands.argument("email", StringArgumentType.greedyString())
-                            .executes(ctx -> {
-                                ServerPlayer player = ctx.getSource().getPlayerOrException();
-                                LinkedAccounts.ligarEmail(player, StringArgumentType.getString(ctx, "email"));
-                                return 1;
-                            })));
-
-            dispatcher.register(Commands.literal("unlinkemail")
-                    .executes(ctx -> {
-                        ServerPlayer player = ctx.getSource().getPlayerOrException();
-                        LinkedAccounts.desligarEmail(player);
-                        return 1;
-                    }));
-
+            // /steps — Mostra os passos de hoje e de ontem do jogador
             dispatcher.register(Commands.literal("steps")
                     .executes(ctx -> {
                         ServerPlayer player = ctx.getSource().getPlayerOrException();
@@ -44,6 +27,7 @@ public final class ModCommands {
                         return 1;
                     }));
 
+            // /karma — Mostra e recalcula o Karma do jogador
             dispatcher.register(Commands.literal("karma")
                     .executes(ctx -> {
                         ServerPlayer player = ctx.getSource().getPlayerOrException();
@@ -51,14 +35,24 @@ public final class ModCommands {
                         return 1;
                     }));
 
-            // Consulta administrativa por email (dados de terceiros -> restrito a gamemasters)
+            // /setgoal <passos> — Define a meta de passos diários do jogador
+            dispatcher.register(Commands.literal("setgoal")
+                    .then(Commands.argument("passos", LongArgumentType.longArg(1))
+                            .executes(ctx -> {
+                                ServerPlayer player = ctx.getSource().getPlayerOrException();
+                                long goal = LongArgumentType.getLong(ctx, "passos");
+                                PlayerProfileManager.setGoal(player, goal);
+                                return 1;
+                            })));
+
+            // /nudgesteps <username> — Consulta administrativa por nome de jogador (restrito a gamemasters)
             dispatcher.register(Commands.literal("nudgesteps")
                     .requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
-                    .then(Commands.argument("email", StringArgumentType.greedyString())
+                    .then(Commands.argument("username", StringArgumentType.word())
                             .executes(ctx -> {
                                 CommandSourceStack source = ctx.getSource();
-                                FirebaseManager.consultarPassosPorEmail(
-                                        StringArgumentType.getString(ctx, "email").trim(), source);
+                                String username = StringArgumentType.getString(ctx, "username").trim();
+                                FirebaseManager.consultarPassosPorUsername(username, source);
                                 return 1;
                             })));
         });

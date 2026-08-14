@@ -22,7 +22,7 @@ public class Nudgecraft implements ModInitializer {
         ServerLifecycleEvents.SERVER_STARTING.register(server -> FirebaseManager.init());
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> FirebaseManager.shutdown());
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
-                KarmaCalculator.calculateInBackground(handler.player));
+                KarmaCalculator.processPlayerLogin(handler.player));
 
         LOGGER.info("[Nudgecraft] Mod inicializado.");
     }

@@ -23,6 +23,21 @@ class AuthViewModel : ViewModel() {
     private val _user = MutableStateFlow<FirebaseUser?>(auth.currentUser)
     val user: StateFlow<FirebaseUser?> = _user
 
+    private val _minecraftUsername = MutableStateFlow<String?>(null)
+    val minecraftUsername: StateFlow<String?> = _minecraftUsername
+
+    fun initUsername(context: Context) {
+        val prefs = context.getSharedPreferences("genfitness_prefs", Context.MODE_PRIVATE)
+        _minecraftUsername.value = prefs.getString("minecraft_username", null)
+    }
+
+    fun saveMinecraftUsername(context: Context, username: String, onSuccess: () -> Unit) {
+        val prefs = context.getSharedPreferences("genfitness_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putString("minecraft_username", username).apply()
+        _minecraftUsername.value = username
+        onSuccess()
+    }
+
     // Web Client ID configurado a partir do google-services.json
     private val WEB_CLIENT_ID = "896777760682-78v13q77e8u2iseqboejq1g7nro70n0e.apps.googleusercontent.com"
 
@@ -50,7 +65,8 @@ class AuthViewModel : ViewModel() {
                     
                     auth.signInWithCredential(firebaseCredential)
                         .addOnSuccessListener {
-                            _user.value = auth.currentUser
+                            val user = auth.currentUser
+                            _user.value = user
                             onSuccess()
                         }
                         .addOnFailureListener {
@@ -91,6 +107,7 @@ class AuthViewModel : ViewModel() {
 
     fun logout(context: Context) {
         auth.signOut()
+        _minecraftUsername.value = null
         val credentialManager = CredentialManager.create(context)
         viewModelScope.launch {
             credentialManager.clearCredentialState(ClearCredentialStateRequest())

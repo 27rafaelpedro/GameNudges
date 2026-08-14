@@ -18,6 +18,7 @@ import androidx.work.*
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -39,6 +40,14 @@ class StepSyncWorker(
             Log.e("StepSyncWorker", "Erro ao definir foreground", e)
         }
 
+        val prefs = applicationContext.getSharedPreferences("genfitness_prefs", Context.MODE_PRIVATE)
+        val minecraftUsername = prefs.getString("minecraft_username", null)
+
+        if (minecraftUsername == null) {
+            Log.d("StepSyncWorker", "Username do Minecraft não configurado localmente. Sincronização ignorada.")
+            return Result.success()
+        }
+
         val healthConnectClient = HealthConnectClient.getOrCreate(applicationContext)
         val sdkStatus = HealthConnectClient.getSdkStatus(applicationContext)
 
@@ -49,28 +58,27 @@ class StepSyncWorker(
 
         return try {
             val hoje = LocalDate.now()
-            val prefs = applicationContext.getSharedPreferences("genfitness_prefs", Context.MODE_PRIVATE)
             val installDateString = prefs.getString("install_date", hoje.toString())
             val installDate = LocalDate.parse(installDateString)
             
-            // 1. Sincronizar o par de dias (Hoje e Ontem), mas apenas se >= data de instalação
-            for (i in 0..1) {
+            // 1. Sincronizar a última semana (7 dias), mas apenas se >= data de instalação
+            for (i in 0..6) {
                 val dataParaSincronizar = hoje.minusDays(i.toLong())
                 if (!dataParaSincronizar.isBefore(installDate)) {
-                    syncStepsForDate(email, healthConnectClient, dataParaSincronizar)
+                    syncStepsForDate(email, minecraftUsername, healthConnectClient, dataParaSincronizar)
                 }
             }
 
-            // 2. Limpeza: Apagar o registo de Anteontem (se for posterior à instalação)
-            val dataParaApagar = hoje.minusDays(2)
+            // 2. Limpeza: Apagar o registo de 8 dias atrás (para manter apenas os últimos 7)
+            val dataParaApagar = hoje.minusDays(7)
             if (!dataParaApagar.isBefore(installDate)) {
-                deleteOldEntry(email, dataParaApagar)
+                deleteOldEntry(minecraftUsername, dataParaApagar)
             }
 
             // 3. Reagendar despertar de meia-noite
             scheduleMidnightWakeup(applicationContext)
 
-            Log.d("StepSyncWorker", "Sincronização concluída para Hoje/Ontem. Próximo despertar agendado.")
+            Log.d("StepSyncWorker", "Sincronização da última semana concluída para $minecraftUsername.")
             Result.success()
         } catch (e: Exception) {
             Log.e("StepSyncWorker", "Erro na sincronização", e)
@@ -78,7 +86,7 @@ class StepSyncWorker(
         }
     }
 
-    private suspend fun syncStepsForDate(email: String, client: HealthConnectClient, date: LocalDate) {
+    private suspend fun syncStepsForDate(email: String, mcUsername: String, client: HealthConnectClient, date: LocalDate) {
         try {
             val zona = ZonedDateTime.now().zone
             val inicio = date.atStartOfDay(zona).toInstant()
@@ -93,27 +101,26 @@ class StepSyncWorker(
             val passos = resposta[StepsRecord.COUNT_TOTAL] ?: 0L
 
             val db = FirebaseFirestore.getInstance()
-            val docId = "${email}_$date"
+            val docId = "${mcUsername}_$date"
 
             val dataMap = hashMapOf(
                 "email" to email,
+                "minecraft_username" to mcUsername,
                 "steps" to passos,
                 "timestamp" to FieldValue.serverTimestamp(),
                 "date" to date.toString()
             )
 
-            db.collection("user_visits").document(docId).set(dataMap)
-                .addOnSuccessListener { 
-                    Log.d("StepSyncWorker", "Atualizado: $docId -> $passos passos") 
-                }
+            db.collection("user_visits").document(docId).set(dataMap).await()
+            Log.d("StepSyncWorker", "Atualizado: $docId -> $passos passos")
         } catch (e: Exception) {
             Log.e("StepSyncWorker", "Erro ao sincronizar data $date", e)
         }
     }
 
-    private fun deleteOldEntry(email: String, date: LocalDate) {
+    private fun deleteOldEntry(mcUsername: String, date: LocalDate) {
         val db = FirebaseFirestore.getInstance()
-        val docId = "${email}_$date"
+        val docId = "${mcUsername}_$date"
         
         db.collection("user_visits").document(docId).delete()
             .addOnSuccessListener {

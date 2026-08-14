@@ -134,7 +134,7 @@ public final class FirebaseManager {
         }
     }
 
-    public static void consultarPassosPorEmail(String email, CommandSourceStack source) {
+    public static void consultarPassosPorUsername(String username, CommandSourceStack source) {
         Firestore firestore = db;
 
         if (firestore == null) {
@@ -145,7 +145,8 @@ public final class FirebaseManager {
         MinecraftServer server = source.getServer();
 
         ApiFuture<QuerySnapshot> future = firestore.collection("user_visits")
-                .whereEqualTo("email", email)
+                .whereEqualTo("minecraft_username", username)
+                .orderBy("date", com.google.cloud.firestore.Query.Direction.DESCENDING)
                 .get();
 
         future.addListener(() -> {
@@ -154,7 +155,7 @@ public final class FirebaseManager {
 
                 if (querySnapshot.isEmpty()) {
                     onServerThread(server, () -> source.sendFailure(
-                            Component.literal("[Nudgecraft] Nenhum registo encontrado para: " + email).withStyle(ChatFormatting.RED)));
+                            Component.literal("[Nudgecraft] Nenhum registo encontrado para o jogador: " + username).withStyle(ChatFormatting.RED)));
                     return;
                 }
 
@@ -173,12 +174,12 @@ public final class FirebaseManager {
 
                 onServerThread(server, () -> source.sendSuccess(() -> Component.literal(
                         "=== Estatísticas do Utilizador ==="
-                                + "\nE-mail: " + email
+                                + "\nJogador: " + username
                                 + "\nPassos Totais: " + passosFinais
                                 + "\nRegistos no Sistema: " + totalDias
                 ).withStyle(ChatFormatting.GREEN), false));
             } catch (Exception e) {
-                LOGGER.error("[Nudgecraft] Erro ao consultar passos para {}", email, e);
+                LOGGER.error("[Nudgecraft] Erro ao consultar passos para {}", username, e);
                 onServerThread(server, () -> source.sendFailure(
                         Component.literal("[Nudgecraft] Erro ao comunicar com o Firebase.").withStyle(ChatFormatting.RED)));
             }
