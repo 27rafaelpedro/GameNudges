@@ -3,6 +3,8 @@ package com.nudgecraft;
 import com.nudgecraft.Karma.KarmaCalculator;
 import com.nudgecraft.command.ModCommands;
 import com.nudgecraft.firebase.FirebaseManager;
+import com.nudgecraft.Karma.KarmaPayload;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
@@ -17,6 +19,7 @@ public class Nudgecraft implements ModInitializer {
 
     @Override
     public void onInitialize() {
+        PayloadTypeRegistry.clientboundPlay().register(KarmaPayload.TYPE, KarmaPayload.CODEC);
         ModCommands.registar();
 
         ServerLifecycleEvents.SERVER_STARTING.register(server -> FirebaseManager.init());

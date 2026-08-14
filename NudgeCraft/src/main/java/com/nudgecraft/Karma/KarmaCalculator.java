@@ -2,7 +2,7 @@ package com.nudgecraft.Karma;
 
 import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.Query;
+import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import com.nudgecraft.firebase.FirebaseManager;
 import com.nudgecraft.firebase.PlayerProfileManager;
@@ -15,6 +15,8 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 public final class KarmaCalculator {
@@ -67,15 +69,22 @@ public final class KarmaCalculator {
                 String lastProcessedVisitDate = profileDoc.getString("lastProcessedVisitDate");
                 Long lastProcessedGoal = profileDoc.getLong("lastProcessedGoal");
 
-                // Consulta os últimos 2 registos ordenados por data decrescente
+                // Consulta todos os registos do jogador (até 7 dias) sem exigir índice composto no Firestore
                 QuerySnapshot snapshot = db.collection("user_visits")
                         .whereEqualTo("minecraft_username", username)
-                        .orderBy("date", Query.Direction.DESCENDING)
-                        .limit(2)
                         .get()
                         .get();
 
-                var docs = snapshot.getDocuments();
+                List<QueryDocumentSnapshot> docs = new ArrayList<>(snapshot.getDocuments());
+                // Ordena por data decrescente em memória
+                docs.sort((d1, d2) -> {
+                    String date1 = d1.getString("date");
+                    String date2 = d2.getString("date");
+                    if (date1 == null && date2 == null) return 0;
+                    if (date1 == null) return 1;
+                    if (date2 == null) return -1;
+                    return date2.compareTo(date1);
+                });
 
                 // Cenário 1: Nenhum registo de passos ou apenas o primeiro dia sem dados de ontem
                 if (docs.isEmpty()) {
@@ -158,6 +167,9 @@ public final class KarmaCalculator {
             long stepsOntem
     ) {
         FirebaseManager.onServerThread(server, () -> {
+            // Sincroniza o Karma atual com o cliente via rede para atualização imediata do HUD
+            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, new KarmaPayload(karma.name()));
+
             if (isLogin) {
                 if (!hasYesterdayData) {
                     // Mensagem de boas-vindas para novos jogadores / sem registo de ontem

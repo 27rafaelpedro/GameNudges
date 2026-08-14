@@ -3,11 +3,15 @@ package com.nudgecraft.firebase;
 import com.google.api.core.ApiFuture;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.firestore.Query;
+import com.google.cloud.firestore.QueryDocumentSnapshot;
 import com.google.cloud.firestore.QuerySnapshot;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /** Leitura do registo de passos mais recente do jogador via minecraft_username. */
 public final class StepsManager {
@@ -28,23 +32,31 @@ public final class StepsManager {
 
         String username = PlayerProfileManager.getUsername(player);
 
-        // limit(2) obtém o registo mais recente (índice 0) e o anterior (índice 1)
+        // Consulta os registos do jogador sem exigir índice composto no Firestore
         Query query = db.collection("user_visits")
-                .whereEqualTo("minecraft_username", username)
-                .orderBy("date", Query.Direction.DESCENDING)
-                .limit(2);
+                .whereEqualTo("minecraft_username", username);
 
         ApiFuture<QuerySnapshot> future = query.get();
 
         future.addListener(() -> {
             try {
                 QuerySnapshot snapshot = future.get();
-                var docs = snapshot.getDocuments();
+                List<QueryDocumentSnapshot> docs = new ArrayList<>(snapshot.getDocuments());
 
                 if (docs.isEmpty()) {
                     PlayerProfileManager.erro(player, server, "Nenhum registo de passos encontrado para " + username + ".");
                     return;
                 }
+
+                // Ordena em memória por data decrescente
+                docs.sort((d1, d2) -> {
+                    String date1 = d1.getString("date");
+                    String date2 = d2.getString("date");
+                    if (date1 == null && date2 == null) return 0;
+                    if (date1 == null) return 1;
+                    if (date2 == null) return -1;
+                    return date2.compareTo(date1);
+                });
 
                 // Dia mais recente (índice 0)
                 var docHoje = docs.get(0);

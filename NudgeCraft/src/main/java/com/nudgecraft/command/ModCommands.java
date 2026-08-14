@@ -27,13 +27,6 @@ public final class ModCommands {
                         return 1;
                     }));
 
-            // /karma — Mostra e recalcula o Karma do jogador
-            dispatcher.register(Commands.literal("karma")
-                    .executes(ctx -> {
-                        ServerPlayer player = ctx.getSource().getPlayerOrException();
-                        KarmaCalculator.calculate(player);
-                        return 1;
-                    }));
 
             // /setgoal <passos> — Define a meta de passos diários do jogador
             dispatcher.register(Commands.literal("setgoal")

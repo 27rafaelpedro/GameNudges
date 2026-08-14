@@ -146,7 +146,6 @@ public final class FirebaseManager {
 
         ApiFuture<QuerySnapshot> future = firestore.collection("user_visits")
                 .whereEqualTo("minecraft_username", username)
-                .orderBy("date", com.google.cloud.firestore.Query.Direction.DESCENDING)
                 .get();
 
         future.addListener(() -> {

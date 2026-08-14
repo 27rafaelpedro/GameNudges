@@ -2,7 +2,9 @@
 	"required": true,
 	"package": "com.nudgecraft.client.mixin",
 	"compatibilityLevel": "JAVA_25",
-	"client": [],
+	"client": [
+		"HudMixin"
+	],
 	"injectors": {
 		"defaultRequire": 1
 	}
