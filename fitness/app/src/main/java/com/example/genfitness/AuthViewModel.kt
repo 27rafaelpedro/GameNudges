@@ -13,12 +13,16 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 class AuthViewModel : ViewModel() {
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
+    private val db = FirebaseFirestore.getInstance()
     
     private val _user = MutableStateFlow<FirebaseUser?>(auth.currentUser)
     val user: StateFlow<FirebaseUser?> = _user
@@ -26,16 +30,76 @@ class AuthViewModel : ViewModel() {
     private val _minecraftUsername = MutableStateFlow<String?>(null)
     val minecraftUsername: StateFlow<String?> = _minecraftUsername
 
+    private val _isLoadingUsername = MutableStateFlow(false)
+    val isLoadingUsername: StateFlow<Boolean> = _isLoadingUsername
+
     fun initUsername(context: Context) {
+        val email = auth.currentUser?.email ?: return
         val prefs = context.getSharedPreferences("genfitness_prefs", Context.MODE_PRIVATE)
-        _minecraftUsername.value = prefs.getString("minecraft_username", null)
+        val localUsername = prefs.getString("minecraft_username", null)
+        
+        if (localUsername != null) {
+            _minecraftUsername.value = localUsername
+            return
+        }
+
+        // Se não houver localmente, verificar na Cloud
+        _isLoadingUsername.value = true
+        viewModelScope.launch {
+            try {
+                val doc = db.collection("users").document(email).get().await()
+                val cloudUsername = doc.getString("minecraft_username")
+                if (cloudUsername != null) {
+                    prefs.edit().putString("minecraft_username", cloudUsername).apply()
+                    _minecraftUsername.value = cloudUsername
+                }
+            } catch (e: Exception) {
+                Log.e("Auth", "Erro ao sincronizar username da cloud: ${e.message}")
+            } finally {
+                _isLoadingUsername.value = false
+            }
+        }
     }
 
-    fun saveMinecraftUsername(context: Context, username: String, onSuccess: () -> Unit) {
+    fun saveMinecraftUsername(context: Context, username: String, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        val email = auth.currentUser?.email ?: return
         val prefs = context.getSharedPreferences("genfitness_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString("minecraft_username", username).apply()
-        _minecraftUsername.value = username
-        onSuccess()
+
+        viewModelScope.launch {
+            try {
+                _isLoadingUsername.value = true
+                
+                // 1. Verificar se o username já está em uso por outro email
+                val query = db.collection("users")
+                    .whereEqualTo("minecraft_username", username)
+                    .get()
+                    .await()
+                
+                if (!query.isEmpty) {
+                    val existingUser = query.documents[0]
+                    if (existingUser.id != email) {
+                        onError("Este username já está a ser utilizado por outro jogador.")
+                        _isLoadingUsername.value = false
+                        return@launch
+                    }
+                }
+
+                // 2. Guardar na Cloud (users/email)
+                db.collection("users").document(email)
+                    .set(mapOf("minecraft_username" to username), SetOptions.merge())
+                    .await()
+                
+                // 3. Guardar Localmente
+                prefs.edit().putString("minecraft_username", username).apply()
+                
+                _minecraftUsername.value = username
+                _isLoadingUsername.value = false
+                onSuccess()
+            } catch (e: Exception) {
+                _isLoadingUsername.value = false
+                onError(e.message ?: "Erro ao guardar username")
+            }
+        }
     }
 
     // Web Client ID configurado a partir do google-services.json

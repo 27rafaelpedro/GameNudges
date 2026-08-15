@@ -128,6 +128,7 @@ fun EcraGenfitness(viewModel: HealthViewModel, authViewModel: AuthViewModel) {
     val passos by viewModel.passos.collectAsState()
     val user by authViewModel.user.collectAsState()
     val minecraftUsername by authViewModel.minecraftUsername.collectAsState()
+    val isLoadingUsername by authViewModel.isLoadingUsername.collectAsState()
     
     var showBatteryDialog by remember { mutableStateOf(false) }
     var showMinecraftDialog by remember { mutableStateOf(false) }
@@ -144,9 +145,11 @@ fun EcraGenfitness(viewModel: HealthViewModel, authViewModel: AuthViewModel) {
     }
 
     // Verificar se precisa de configurar username do Minecraft
-    LaunchedEffect(user, minecraftUsername) {
-        if (user != null && minecraftUsername == null) {
+    LaunchedEffect(user, minecraftUsername, isLoadingUsername) {
+        if (user != null && minecraftUsername == null && !isLoadingUsername) {
             showMinecraftDialog = true
+        } else if (minecraftUsername != null) {
+            showMinecraftDialog = false
         }
     }
 
@@ -163,28 +166,44 @@ fun EcraGenfitness(viewModel: HealthViewModel, authViewModel: AuthViewModel) {
                     Spacer(modifier = Modifier.height(16.dp))
                     TextField(
                         value = tempUsername,
-                        onValueChange = { tempUsername = it },
+                        onValueChange = { 
+                            tempUsername = it
+                            errorMessage = null 
+                        },
                         label = { Text("Minecraft Username") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isLoadingUsername
                     )
+                    if (isLoadingUsername) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.padding(top = 8.dp).size(24.dp),
+                            color = Color(0xFF22C55E)
+                        )
+                    }
                     errorMessage?.let {
-                        Text(text = it, color = Color.Red, fontSize = 12.sp)
+                        Text(text = it, color = Color.Red, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
                     }
                 }
             },
             confirmButton = {
-                Button(onClick = {
-                    if (tempUsername.isNotBlank()) {
-                        authViewModel.saveMinecraftUsername(
-                            context,
-                            tempUsername,
-                            onSuccess = { showMinecraftDialog = false }
-                        )
-                    } else {
-                        errorMessage = "O nome não pode estar vazio"
-                    }
-                }) {
+                Button(
+                    onClick = {
+                        if (tempUsername.isNotBlank()) {
+                            authViewModel.saveMinecraftUsername(
+                                context,
+                                tempUsername,
+                                onSuccess = { 
+                                    showMinecraftDialog = false 
+                                },
+                                onError = { errorMessage = it }
+                            )
+                        } else {
+                            errorMessage = "O nome não pode estar vazio"
+                        }
+                    },
+                    enabled = !isLoadingUsername && tempUsername.isNotBlank()
+                ) {
                     Text("Guardar")
                 }
             },
