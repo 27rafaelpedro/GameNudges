@@ -8,6 +8,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 public final class KarmaHudOverlay {
 
     private static volatile KarmaState clientKarma = KarmaState.BASE;
+    private static volatile long lastUpdateTime = 0;
 
     private KarmaHudOverlay() {
     }
@@ -17,6 +18,7 @@ public final class KarmaHudOverlay {
             context.client().execute(() -> {
                 try {
                     clientKarma = KarmaState.valueOf(payload.karmaName());
+                    lastUpdateTime = System.currentTimeMillis();
                 } catch (Exception e) {
                     clientKarma = KarmaState.BASE;
                 }
@@ -26,6 +28,7 @@ public final class KarmaHudOverlay {
 
     public static void setClientKarma(KarmaState karma) {
         clientKarma = (karma != null) ? karma : KarmaState.BASE;
+        lastUpdateTime = System.currentTimeMillis();
     }
 
     public static KarmaState getClientKarma() {
@@ -57,7 +60,7 @@ public final class KarmaHudOverlay {
         graphicsExtractor.fill(startX - 3, startY - 3, startX + totalBarWidth + 3, startY + segmentHeight + 3, 0x88000000);
         graphicsExtractor.outline(startX - 3, startY - 3, totalBarWidth + 6, segmentHeight + 6, 0xFF333333);
 
-        // Cores dos 7 segmentos
+        // Cores dos 7 segmentos originais (Verde para positivos, Amarelo para Base)
         int[] segmentColors = {
                 0xFF8B1A1A, // VNEGATIVE (Vermelho Escuro)
                 0xFFD32F2F, // NEGATIVE (Vermelho)

@@ -12,6 +12,10 @@ import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import com.nudgecraft.Karma.strategy.KarmaEffectManager;
+import net.minecraft.server.level.ServerPlayer;
+
 public class Nudgecraft implements ModInitializer {
 
     public static final String MOD_ID = "nudgecraft";
@@ -21,11 +25,18 @@ public class Nudgecraft implements ModInitializer {
     public void onInitialize() {
         PayloadTypeRegistry.clientboundPlay().register(KarmaPayload.TYPE, KarmaPayload.CODEC);
         ModCommands.registar();
+        com.nudgecraft.event.BlockBreakEventHandler.init();
 
         ServerLifecycleEvents.SERVER_STARTING.register(server -> FirebaseManager.init());
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> FirebaseManager.shutdown());
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 KarmaCalculator.processPlayerLogin(handler.player));
+
+        ServerTickEvents.END_LEVEL_TICK.register(level -> {
+            for (ServerPlayer player : level.players()) {
+                KarmaEffectManager.tick(player, level);
+            }
+        });
 
         LOGGER.info("[Nudgecraft] Mod inicializado.");
     }
