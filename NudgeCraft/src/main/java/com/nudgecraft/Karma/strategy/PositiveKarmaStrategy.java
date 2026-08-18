@@ -11,12 +11,40 @@ import net.minecraft.world.level.block.BonemealableBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import com.nudgecraft.Karma.KarmaState;
 
+/**
+ * Estratégia de Karma que aplica as recompensas, efeitos e melhorias ambientais
+ * associadas aos estados de Karma Positivo (POSITIVE e VPOSITIVE).
+ */
 public class PositiveKarmaStrategy implements KarmaStrategy {
 
+    /**
+     * Catálogo estático das 12 espécies de flores de 1 bloco de altura
+     * utilizadas para a florestação passiva ao redor do jogador.
+     */
+    private static final BlockState[] FLOWERS = {
+            Blocks.DANDELION.defaultBlockState(),
+            Blocks.POPPY.defaultBlockState(),
+            Blocks.BLUE_ORCHID.defaultBlockState(),
+            Blocks.ALLIUM.defaultBlockState(),
+            Blocks.AZURE_BLUET.defaultBlockState(),
+            Blocks.RED_TULIP.defaultBlockState(),
+            Blocks.ORANGE_TULIP.defaultBlockState(),
+            Blocks.WHITE_TULIP.defaultBlockState(),
+            Blocks.PINK_TULIP.defaultBlockState(),
+            Blocks.OXEYE_DAISY.defaultBlockState(),
+            Blocks.CORNFLOWER.defaultBlockState(),
+            Blocks.LILY_OF_THE_VALLEY.defaultBlockState()
+    };
+
+    /**
+     * Aplica partículas de login brilhantes, visão noturna no VPOSITIVE à noite,
+     * florestação espontânea de solo e aceleração de colheitas próximas (efeito Bonemeal).
+     *
+     * @param player O jogador sob efeito da estratégia.
+     * @param level  O nível de servidor onde o jogador se encontra.
+     */
     @Override
     public void applyPassiveEffects(ServerPlayer player, ServerLevel level) {
-        // Spawn positive/happy particles around the player occasionally (yellow glow)
-        // Apenas ativo durante os primeiros 15 segundos após o jogador entrar no mundo
         long elapsed = System.currentTimeMillis() - KarmaEffectManager.getServerLoginTime();
         if (elapsed <= 15000) {
             if (level.getRandom().nextFloat() < 0.1f) {
@@ -26,23 +54,20 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
             }
         }
 
-        // Se o Karma for VPOSITIVE, aplica o efeito de visão noturna (Night Vision) à noite
         if (KarmaEffectManager.getCurrentKarma() == KarmaState.VPOSITIVE) {
             if (level.isDarkOutside()) {
                 player.addEffect(new MobEffectInstance(
                         MobEffects.NIGHT_VISION,
-                        260,   // Duração de 13 segundos (evita o efeito de cintilação ao re-aplicar)
-                        0,     // Amplificador
-                        false, // Ambient
-                        false, // Sem partículas no jogador
-                        true   // Mostrar o ícone no HUD
+                        260,
+                        0,
+                        false,
+                        false,
+                        true
                 ));
             }
         }
 
-        // Randomly affect vegetation around the player
-        if (level.getRandom().nextFloat() < 0.2f) { // 20% chance per tick
-            // Select random coordinate in radius of 5 blocks around player
+        if (level.getRandom().nextFloat() < 0.5f) {
             int rangeX = level.getRandom().nextInt(11) - 5;
             int rangeY = level.getRandom().nextInt(5) - 2;
             int rangeZ = level.getRandom().nextInt(11) - 5;
@@ -50,25 +75,19 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
             BlockPos pos = player.blockPosition().offset(rangeX, rangeY, rangeZ);
             BlockState state = level.getBlockState(pos);
 
-            // 1. Spawning flowers on empty grass blocks
             if (state.is(Blocks.GRASS_BLOCK)) {
                 BlockPos posAbove = pos.above();
                 if (level.isEmptyBlock(posAbove)) {
-                    // 5% chance to spawn a flower
-                    if (level.getRandom().nextFloat() < 0.05f) {
-                        BlockState flower = level.getRandom().nextBoolean() ? 
-                                Blocks.DANDELION.defaultBlockState() : 
-                                Blocks.POPPY.defaultBlockState();
-                        level.setBlockAndUpdate(posAbove, flower);
+                    if (level.getRandom().nextFloat() < 0.20f) {
+                        BlockState randomFlower = FLOWERS[level.getRandom().nextInt(FLOWERS.length)];
+                        level.setBlockAndUpdate(posAbove, randomFlower);
                     }
                 }
             }
 
-            // 2. Bonemeal crops / saplings (excluding GRASS_BLOCK to prevent tall grass spawn)
             if (state.getBlock() instanceof BonemealableBlock bonemealable && !state.is(Blocks.GRASS_BLOCK)) {
                 if (bonemealable.isValidBonemealTarget(level, pos, state) && bonemealable.isBonemealSuccess(level, level.getRandom(), pos, state)) {
                     bonemealable.performBonemeal(level, level.getRandom(), pos, state);
-                    // Spawn happy particle at the crop (yellow glow)
                     level.sendParticles(ParticleTypes.GLOW,
                             pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
                             3, 0.2, 0.2, 0.2, 0.0);
