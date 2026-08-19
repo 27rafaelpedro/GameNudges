@@ -36,6 +36,7 @@ public class Nudgecraft implements ModInitializer {
             for (ServerPlayer player : level.players()) {
                 KarmaEffectManager.tick(player, level);
             }
+            com.nudgecraft.Karma.strategy.TemporaryBlockManager.tick(level);
         });
 
         LOGGER.info("[Nudgecraft] Mod inicializado.");

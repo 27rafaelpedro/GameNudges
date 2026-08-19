@@ -1,11 +1,13 @@
 {
-	"required": true,
-	"package": "com.nudgecraft.client.mixin",
-	"compatibilityLevel": "JAVA_25",
-	"client": [
-		"HudMixin"
-	],
-	"injectors": {
-		"defaultRequire": 1
-	}
+  "required": true,
+  "package": "com.nudgecraft.client.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "HudMixin",
+    "FogRendererMixin",
+    "EffectsInInventoryMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
 }

@@ -48,7 +48,7 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
                         1,
                         false,
                         false,
-                        true
+                        false // Ocultar ícone
                 ));
             } else if (current == KarmaState.NEGATIVE) {
                 player.addEffect(new MobEffectInstance(
@@ -57,24 +57,12 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
                         0,
                         false,
                         false,
-                        true
+                        false // Ocultar ícone
                 ));
             }
         }
 
-        if (current == KarmaState.VNEGATIVE && level.isDarkOutside()) {
-            long cycleTick = level.getGameTime() % 340;
-            if (cycleTick < 40) {
-                player.addEffect(new MobEffectInstance(
-                        MobEffects.BLINDNESS,
-                        60,
-                        0,
-                        false,
-                        false,
-                        true
-                ));
-            }
-        }
+
 
         if (level.getGameTime() % 600 == 0 && level.getServer() != null) {
             boolean isRaining = level.isRaining();
@@ -114,7 +102,30 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
                         BlockPos targetPos = basePos.offset(dx, dy, dz);
                         BlockState targetState = level.getBlockState(targetPos);
                         if (targetState.is(Blocks.GRASS_BLOCK)) {
-                            level.setBlockAndUpdate(targetPos, Blocks.COARSE_DIRT.defaultBlockState());
+                            BlockState newState;
+                            boolean isTemporary;
+
+                            if (current == KarmaState.SNEGATIVE) {
+                                newState = Blocks.DIRT.defaultBlockState();
+                                isTemporary = true;
+                            } else if (current == KarmaState.NEGATIVE) {
+                                newState = Blocks.COARSE_DIRT.defaultBlockState();
+                                isTemporary = level.getRandom().nextFloat() >= 0.15f;
+                            } else { // VNEGATIVE
+                                if (level.getRandom().nextFloat() < 0.60f) {
+                                    newState = Blocks.DIRT_PATH.defaultBlockState();
+                                } else {
+                                    newState = Blocks.DIRT.defaultBlockState();
+                                }
+                                isTemporary = level.getRandom().nextFloat() >= 0.40f;
+                            }
+
+                            level.setBlockAndUpdate(targetPos, newState);
+
+                            if (isTemporary) {
+                                TemporaryBlockManager.registerTemporaryBlock(targetPos, level);
+                            }
+
                             if (level.getRandom().nextFloat() < 0.05f) {
                                 level.sendParticles(ParticleTypes.SMOKE,
                                         targetPos.getX() + 0.5, targetPos.getY() + 1.0, targetPos.getZ() + 0.5,

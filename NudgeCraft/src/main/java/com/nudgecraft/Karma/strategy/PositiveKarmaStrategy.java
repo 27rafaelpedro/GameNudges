@@ -55,19 +55,25 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
         }
 
         if (KarmaEffectManager.getCurrentKarma() == KarmaState.VPOSITIVE) {
-            if (level.isDarkOutside()) {
+            int brightness = level.getMaxLocalRawBrightness(player.blockPosition());
+            if (brightness < 7) {
                 player.addEffect(new MobEffectInstance(
                         MobEffects.NIGHT_VISION,
-                        260,
-                        0,
-                        false,
-                        false,
-                        true
+                        260,   // Duração de 13 segundos para aplicação suave
+                        0,     // Nível 0
+                        false, // Ambient
+                        false, // Sem partículas
+                        false  // Ocultar ícones no HUD e Inventário!
                 ));
+            } else {
+                if (player.hasEffect(MobEffects.NIGHT_VISION)) {
+                    player.removeEffect(MobEffects.NIGHT_VISION);
+                }
             }
         }
 
-        if (level.getRandom().nextFloat() < 0.5f) {
+        // Crescimento de plantas/culturas (bonemeal) a cada tick com chance
+        if (level.getRandom().nextFloat() < 0.15f) {
             int rangeX = level.getRandom().nextInt(11) - 5;
             int rangeY = level.getRandom().nextInt(5) - 2;
             int rangeZ = level.getRandom().nextInt(11) - 5;
@@ -75,22 +81,33 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
             BlockPos pos = player.blockPosition().offset(rangeX, rangeY, rangeZ);
             BlockState state = level.getBlockState(pos);
 
-            if (state.is(Blocks.GRASS_BLOCK)) {
-                BlockPos posAbove = pos.above();
-                if (level.isEmptyBlock(posAbove)) {
-                    if (level.getRandom().nextFloat() < 0.20f) {
-                        BlockState randomFlower = FLOWERS[level.getRandom().nextInt(FLOWERS.length)];
-                        level.setBlockAndUpdate(posAbove, randomFlower);
-                    }
-                }
-            }
-
             if (state.getBlock() instanceof BonemealableBlock bonemealable && !state.is(Blocks.GRASS_BLOCK)) {
                 if (bonemealable.isValidBonemealTarget(level, pos, state) && bonemealable.isBonemealSuccess(level, level.getRandom(), pos, state)) {
                     bonemealable.performBonemeal(level, level.getRandom(), pos, state);
                     level.sendParticles(ParticleTypes.GLOW,
                             pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
                             3, 0.2, 0.2, 0.2, 0.0);
+                }
+            }
+        }
+
+        // Spawn de flores controlado (apenas a cada 100 ticks, aprox. 5 segundos)
+        if (level.getGameTime() % 100 == 0) {
+            int rangeX = level.getRandom().nextInt(9) - 4;
+            int rangeY = level.getRandom().nextInt(3) - 1;
+            int rangeZ = level.getRandom().nextInt(9) - 4;
+
+            BlockPos pos = player.blockPosition().offset(rangeX, rangeY, rangeZ);
+            BlockState state = level.getBlockState(pos);
+
+            if (state.is(Blocks.GRASS_BLOCK)) {
+                BlockPos posAbove = pos.above();
+                if (level.isEmptyBlock(posAbove)) {
+                    // 50% de chance a cada 5 segundos de gerar 1 flor
+                    if (level.getRandom().nextFloat() < 0.50f) {
+                        BlockState randomFlower = FLOWERS[level.getRandom().nextInt(FLOWERS.length)];
+                        level.setBlockAndUpdate(posAbove, randomFlower);
+                    }
                 }
             }
         }
