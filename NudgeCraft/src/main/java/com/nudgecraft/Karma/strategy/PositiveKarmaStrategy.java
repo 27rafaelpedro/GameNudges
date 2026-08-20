@@ -87,6 +87,7 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
                     level.sendParticles(ParticleTypes.GLOW,
                             pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
                             3, 0.2, 0.2, 0.2, 0.0);
+                    KarmaEffectManager.triggerCropMessage(player, true);
                 }
             }
         }

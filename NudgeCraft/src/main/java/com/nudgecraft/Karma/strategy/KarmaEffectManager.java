@@ -8,6 +8,10 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.network.chat.Component;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Gestor global do ciclo de estratégias de Karma no servidor.
@@ -16,6 +20,13 @@ import net.minecraft.world.level.block.Blocks;
 public final class KarmaEffectManager {
 
     private static final Identifier GRASS_SPEED_MODIFIER_ID = Identifier.fromNamespaceAndPath("nudgecraft", "grass_speed_boost");
+    private static final Map<UUID, Integer> PLAY_TIME_TICKS = new ConcurrentHashMap<>();
+    private static final Map<UUID, CropMessageState> CROP_MSG_STATES = new ConcurrentHashMap<>();
+
+    private static class CropMessageState {
+        int displayTicks = 0;
+        int cooldownTicks = 0;
+    }
 
     private static volatile KarmaState currentKarma = KarmaState.BASE;
     private static volatile KarmaStrategy activeStrategy = (player, level) -> {};
@@ -85,52 +96,101 @@ public final class KarmaEffectManager {
      */
     public static void tick(ServerPlayer player, ServerLevel level) {
         manageGrassSpeed(player);
-        checkLookingAtCrops(player, level);
+        updateCropMessageState(player);
+        trackPlayTime(player);
         activeStrategy.applyPassiveEffects(player, level);
     }
 
     /**
-     * Verifica se o jogador está a olhar para plantações e envia-lhe uma mensagem
-     * de Action Bar de forma passiva e subtil baseada no seu nível de Karma.
+     * Monitoriza o tempo de jogo contínuo da sessão do jogador.
+     * Envia um lembrete no chat a cada 30 minutos (36.000 ticks).
+     *
+     * @param player O jogador sob monitorização.
      */
-    private static void checkLookingAtCrops(ServerPlayer player, ServerLevel level) {
-        if (level.getGameTime() % 30 != 0) {
+    private static void trackPlayTime(ServerPlayer player) {
+        UUID uuid = player.getUUID();
+        int ticks = PLAY_TIME_TICKS.getOrDefault(uuid, 0) + 1;
+
+        if (ticks >= 36000) { // 30 minutos (36.000 ticks)
+            player.sendSystemMessage(
+                    Component.literal("Lembra-te de incluir algum movimento no dia de hoje!")
+                            .withStyle(net.minecraft.ChatFormatting.GOLD, net.minecraft.ChatFormatting.BOLD)
+            );
+            PLAY_TIME_TICKS.put(uuid, 0);
+        } else {
+            PLAY_TIME_TICKS.put(uuid, ticks);
+        }
+    }
+
+    /**
+     * Remove o registo de tempo de jogo do jogador quando ele se desconecta.
+     *
+     * @param player O jogador que se desconectou.
+     */
+    public static void onPlayerDisconnect(ServerPlayer player) {
+        PLAY_TIME_TICKS.remove(player.getUUID());
+        CROP_MSG_STATES.remove(player.getUUID());
+    }
+
+    /**
+     * Aciona a exibição da mensagem de plantação no Action Bar.
+     * Mostra a mensagem por 5 segundos (100 ticks) caso o cooldown de 10 segundos não esteja ativo.
+     *
+     * @param player O jogador que ativou o crescimento/regressão.
+     * @param isGrowth true se a plantação cresceu, false se regrediu.
+     */
+    public static void triggerCropMessage(ServerPlayer player, boolean isGrowth) {
+        UUID uuid = player.getUUID();
+        CropMessageState state = CROP_MSG_STATES.computeIfAbsent(uuid, k -> new CropMessageState());
+
+        if (state.cooldownTicks == 0 && state.displayTicks == 0) {
+            state.displayTicks = 100;
+            sendCropActionBarMessage(player);
+        }
+    }
+
+    /**
+     * Atualiza o estado de tempo da mensagem a cada tick do jogador.
+     */
+    private static void updateCropMessageState(ServerPlayer player) {
+        UUID uuid = player.getUUID();
+        CropMessageState state = CROP_MSG_STATES.get(uuid);
+        if (state == null) {
             return;
         }
 
-        net.minecraft.world.phys.HitResult hit = player.pick(5.0D, 1.0F, false);
-        if (hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK) {
-            net.minecraft.world.phys.BlockHitResult blockHit = (net.minecraft.world.phys.BlockHitResult) hit;
-            net.minecraft.world.level.block.state.BlockState state = level.getBlockState(blockHit.getBlockPos());
-
-            if (isCrop(state)) {
-                KarmaState karma = getCurrentKarma();
-                net.minecraft.network.chat.Component msg = null;
-
-                if (karma == KarmaState.VPOSITIVE || karma == KarmaState.POSITIVE) {
-                    msg = net.minecraft.network.chat.Component.literal("As tuas sementes crescem com a tua energia positiva!")
-                            .withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC);
-                } else if (karma == KarmaState.VNEGATIVE || karma == KarmaState.NEGATIVE) {
-                    msg = net.minecraft.network.chat.Component.literal("As tuas plantações parecem murchar com a tua presença...")
-                            .withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC);
-                }
-
-                if (msg != null) {
-                    player.sendSystemMessage(msg, true); // Envia como Action Bar
-                }
+        if (state.cooldownTicks > 0) {
+            state.cooldownTicks--;
+        } else if (state.displayTicks > 0) {
+            state.displayTicks--;
+            // Envia a cada 20 ticks (1 segundo) para mantê-la estável no ecrã
+            if (state.displayTicks % 20 == 0 && state.displayTicks > 0) {
+                sendCropActionBarMessage(player);
+            }
+            if (state.displayTicks == 0) {
+                state.cooldownTicks = 200; // 10 segundos de cooldown
             }
         }
     }
 
     /**
-     * Determina se o estado do bloco corresponde a uma plantação.
+     * Envia a mensagem de Action Bar apropriada com base no Karma.
      */
-    private static boolean isCrop(net.minecraft.world.level.block.state.BlockState state) {
-        return state.is(net.minecraft.tags.BlockTags.CROPS)
-                || state.getBlock() instanceof net.minecraft.world.level.block.CropBlock
-                || state.getBlock() instanceof net.minecraft.world.level.block.StemBlock
-                || state.getBlock() instanceof net.minecraft.world.level.block.CocoaBlock
-                || state.getBlock() instanceof net.minecraft.world.level.block.SweetBerryBushBlock;
+    private static void sendCropActionBarMessage(ServerPlayer player) {
+        KarmaState karma = getCurrentKarma();
+        net.minecraft.network.chat.Component msg = null;
+
+        if (karma == KarmaState.VPOSITIVE || karma == KarmaState.POSITIVE) {
+            msg = net.minecraft.network.chat.Component.literal("As tuas sementes crescem com a tua energia positiva!")
+                    .withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC);
+        } else if (karma == KarmaState.VNEGATIVE || karma == KarmaState.NEGATIVE) {
+            msg = net.minecraft.network.chat.Component.literal("As sementes sofrem com a tua energia..")
+                    .withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC);
+        }
+
+        if (msg != null) {
+            player.sendSystemMessage(msg, true);
+        }
     }
 
     /**

@@ -31,6 +31,8 @@ public class Nudgecraft implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> FirebaseManager.shutdown());
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
                 KarmaCalculator.processPlayerLogin(handler.player));
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                KarmaEffectManager.onPlayerDisconnect(handler.player));
 
         ServerTickEvents.END_LEVEL_TICK.register(level -> {
             for (ServerPlayer player : level.players()) {
