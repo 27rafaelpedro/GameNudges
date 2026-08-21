@@ -4,6 +4,8 @@ import com.nudgecraft.Karma.KarmaCalculator;
 import com.nudgecraft.command.ModCommands;
 import com.nudgecraft.firebase.FirebaseManager;
 import com.nudgecraft.Karma.KarmaPayload;
+import com.nudgecraft.manager.KarmaEffectManager;
+import com.nudgecraft.manager.TemporaryBlockManager;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -13,7 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
-import com.nudgecraft.Karma.strategy.KarmaEffectManager;
 import net.minecraft.server.level.ServerPlayer;
 
 public class Nudgecraft implements ModInitializer {
@@ -26,6 +27,7 @@ public class Nudgecraft implements ModInitializer {
         PayloadTypeRegistry.clientboundPlay().register(KarmaPayload.TYPE, KarmaPayload.CODEC);
         ModCommands.registar();
         com.nudgecraft.event.BlockBreakEventHandler.init();
+        com.nudgecraft.event.FallDamageEventHandler.init();
 
         ServerLifecycleEvents.SERVER_STARTING.register(server -> FirebaseManager.init());
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> FirebaseManager.shutdown());
@@ -38,7 +40,7 @@ public class Nudgecraft implements ModInitializer {
             for (ServerPlayer player : level.players()) {
                 KarmaEffectManager.tick(player, level);
             }
-            com.nudgecraft.Karma.strategy.TemporaryBlockManager.tick(level);
+            TemporaryBlockManager.tick(level);
         });
 
         LOGGER.info("[Nudgecraft] Mod inicializado.");

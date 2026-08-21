@@ -4,12 +4,13 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.BonemealableBlock;
+import net.minecraft.world.level.block.CropBlock;
+import net.minecraft.world.level.block.StemBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import com.nudgecraft.Karma.KarmaState;
+import com.nudgecraft.manager.KarmaEffectManager;
 
 /**
  * Estratégia de Karma que aplica as recompensas, efeitos e melhorias ambientais
@@ -37,7 +38,7 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
     };
 
     /**
-     * Aplica partículas de login brilhantes, visão noturna no VPOSITIVE à noite,
+     * Aplica partículas de login brilhantes,
      * florestação espontânea de solo e aceleração de colheitas próximas (efeito Bonemeal).
      *
      * @param player O jogador sob efeito da estratégia.
@@ -51,24 +52,6 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
                 level.sendParticles(ParticleTypes.GLOW,
                         player.getX(), player.getY() + 1.0, player.getZ(),
                         3, 0.4, 0.4, 0.4, 0.1);
-            }
-        }
-
-        if (KarmaEffectManager.getCurrentKarma() == KarmaState.VPOSITIVE) {
-            int brightness = level.getMaxLocalRawBrightness(player.blockPosition());
-            if (brightness < 7) {
-                player.addEffect(new MobEffectInstance(
-                        MobEffects.NIGHT_VISION,
-                        260,   // Duração de 13 segundos para aplicação suave
-                        0,     // Nível 0
-                        false, // Ambient
-                        false, // Sem partículas
-                        false  // Ocultar ícones no HUD e Inventário!
-                ));
-            } else {
-                if (player.hasEffect(MobEffects.NIGHT_VISION)) {
-                    player.removeEffect(MobEffects.NIGHT_VISION);
-                }
             }
         }
 
@@ -87,7 +70,14 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
                     level.sendParticles(ParticleTypes.GLOW,
                             pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
                             3, 0.2, 0.2, 0.2, 0.0);
-                    KarmaEffectManager.triggerCropMessage(player, true);
+
+                    // Apenas envia a mensagem se for uma plantação agrícola do jogador (em terra arada com enxada)
+                    boolean isPlayerCrop = level.getBlockState(pos.below()).is(Blocks.FARMLAND)
+                            || state.getBlock() instanceof CropBlock
+                            || state.getBlock() instanceof StemBlock;
+                    if (isPlayerCrop) {
+                        KarmaEffectManager.triggerCropMessage(player, true);
+                    }
                 }
             }
         }

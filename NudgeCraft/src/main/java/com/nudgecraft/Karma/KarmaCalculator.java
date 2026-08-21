@@ -171,10 +171,10 @@ public final class KarmaCalculator {
             net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, new KarmaPayload(karma.name()));
 
             // Atualiza a estratégia do jogador no servidor
-            com.nudgecraft.Karma.strategy.KarmaEffectManager.updateStrategy(karma);
+            com.nudgecraft.manager.KarmaEffectManager.updateStrategy(karma);
 
             if (isLogin) {
-                com.nudgecraft.Karma.strategy.KarmaEffectManager.setServerLoginTime(System.currentTimeMillis());
+                com.nudgecraft.manager.KarmaEffectManager.setServerLoginTime(System.currentTimeMillis());
                 if (!hasYesterdayData) {
                     // Mensagem de boas-vindas para novos jogadores / sem registo de ontem
                     player.sendSystemMessage(Component.literal("Bem-vindo/a ")

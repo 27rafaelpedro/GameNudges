@@ -1,7 +1,7 @@
 package com.nudgecraft.mixin;
 
 import com.nudgecraft.Karma.KarmaState;
-import com.nudgecraft.Karma.strategy.KarmaEffectManager;
+import com.nudgecraft.manager.KarmaEffectManager;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.goal.TemptGoal;
 import net.minecraft.world.entity.player.Player;

@@ -4,7 +4,7 @@ import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.nudgecraft.Karma.KarmaState;
 import com.nudgecraft.Karma.KarmaPayload;
-import com.nudgecraft.Karma.strategy.KarmaEffectManager;
+import com.nudgecraft.manager.KarmaEffectManager;
 import com.nudgecraft.firebase.FirebaseManager;
 import com.nudgecraft.firebase.PlayerProfileManager;
 import com.nudgecraft.firebase.StepsManager;

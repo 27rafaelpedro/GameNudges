@@ -1,7 +1,7 @@
 package com.nudgecraft.event;
 
 import com.nudgecraft.Karma.KarmaState;
-import com.nudgecraft.Karma.strategy.KarmaEffectManager;
+import com.nudgecraft.manager.KarmaEffectManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.DustColorTransitionOptions;
 import net.minecraft.server.level.ServerLevel;

@@ -7,11 +7,15 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.CropBlock;
+import net.minecraft.world.level.block.StemBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
 import net.minecraft.world.level.block.state.properties.Property;
 import com.nudgecraft.Karma.KarmaState;
+import com.nudgecraft.manager.KarmaEffectManager;
+import com.nudgecraft.manager.TemporaryBlockManager;
 
 /**
  * Estratégia de Karma que aplica as penalizações, efeitos e decaimento ambiental
@@ -170,7 +174,14 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
                             level.sendParticles(ParticleTypes.SMOKE,
                                     pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
                                     3, 0.2, 0.2, 0.2, 0.0);
-                            KarmaEffectManager.triggerCropMessage(player, false);
+
+                            // Apenas envia a mensagem se for uma plantação agrícola do jogador (em terra arada com enxada)
+                            boolean isPlayerCrop = level.getBlockState(pos.below()).is(Blocks.FARMLAND)
+                                    || state.getBlock() instanceof CropBlock
+                                    || state.getBlock() instanceof StemBlock;
+                            if (isPlayerCrop) {
+                                KarmaEffectManager.triggerCropMessage(player, false);
+                            }
                         }
                     }
                 }

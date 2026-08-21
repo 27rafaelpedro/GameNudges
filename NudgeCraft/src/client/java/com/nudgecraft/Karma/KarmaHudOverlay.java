@@ -1,21 +1,16 @@
 package com.nudgecraft.Karma;
 
+import com.nudgecraft.Nudgecraft;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.resources.Identifier;
 import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.resources.Identifier;
 
 public final class KarmaHudOverlay {
 
-    private static final Identifier TEX_VNEGATIVE = Identifier.fromNamespaceAndPath("nudgecraft", "textures/gui/vnegative.png");
-    private static final Identifier TEX_NEGATIVE = Identifier.fromNamespaceAndPath("nudgecraft", "textures/gui/negative.png");
-    private static final Identifier TEX_SNEGATIVE = Identifier.fromNamespaceAndPath("nudgecraft", "textures/gui/snegative.png");
-    private static final Identifier TEX_BASE = Identifier.fromNamespaceAndPath("nudgecraft", "textures/gui/base.png");
-    private static final Identifier TEX_SPOSITIVE = Identifier.fromNamespaceAndPath("nudgecraft", "textures/gui/spositive.png");
-    private static final Identifier TEX_POSITIVE = Identifier.fromNamespaceAndPath("nudgecraft", "textures/gui/positive.png");
-    private static final Identifier TEX_VPOSITIVE = Identifier.fromNamespaceAndPath("nudgecraft", "textures/gui/vpositive.png");
+    private static final Identifier TEX_FRAME = Nudgecraft.id("textures/gui/frame.png");
 
     private static volatile KarmaState clientKarma = KarmaState.BASE;
     private static volatile long lastUpdateTime = 0;
@@ -32,6 +27,7 @@ public final class KarmaHudOverlay {
                 } catch (Exception e) {
                     clientKarma = KarmaState.BASE;
                 }
+                KarmaStateHolder.set(clientKarma);
             });
         });
     }
@@ -39,6 +35,7 @@ public final class KarmaHudOverlay {
     public static void setClientKarma(KarmaState karma) {
         clientKarma = (karma != null) ? karma : KarmaState.BASE;
         lastUpdateTime = System.currentTimeMillis();
+        KarmaStateHolder.set(clientKarma);
     }
 
     public static KarmaState getClientKarma() {
@@ -46,7 +43,7 @@ public final class KarmaHudOverlay {
     }
 
     public static void render(GuiGraphicsExtractor graphicsExtractor, DeltaTracker deltaTracker) {
-        // Exibe apenas nos primeiros 45 segundos (45.000 ms) após atualização do Karma (login ou comando)
+        // Exibe apenas nos primeiros 45 segundos (45.000 ms) após atualização do Karma
         if (System.currentTimeMillis() - lastUpdateTime >= 45000) {
             return;
         }
@@ -58,34 +55,29 @@ public final class KarmaHudOverlay {
 
         int screenWidth = client.getWindow().getGuiScaledWidth();
 
-        // Configurações do Ícone no canto superior direito
-        int width = 16;
-        int height = 16;
-        int startX = screenWidth - width - 10; // 10 pixels de margem da direita
-        int startY = 10; // 10 pixels de margem do topo
-
         Identifier texture = switch (clientKarma) {
-            case VNEGATIVE -> TEX_VNEGATIVE;
-            case NEGATIVE -> TEX_NEGATIVE;
-            case SNEGATIVE -> TEX_SNEGATIVE;
-            case BASE -> TEX_BASE;
-            case SPOSITIVE -> TEX_SPOSITIVE;
-            case POSITIVE -> TEX_POSITIVE;
-            case VPOSITIVE -> TEX_VPOSITIVE;
+            case VNEGATIVE -> Nudgecraft.id("textures/gui/vnegative.png");
+            case NEGATIVE -> Nudgecraft.id("textures/gui/negative.png");
+            case SNEGATIVE -> Nudgecraft.id("textures/gui/snegative.png");
+            case BASE -> Nudgecraft.id("textures/gui/base.png");
+            case SPOSITIVE -> Nudgecraft.id("textures/gui/spositive.png");
+            case POSITIVE -> Nudgecraft.id("textures/gui/positive.png");
+            case VPOSITIVE -> Nudgecraft.id("textures/gui/vpositive.png");
         };
 
-        // Desenha a textura do ícone de pixel art de 16x16 pixels especificando a pipeline e o tamanho correto
-        graphicsExtractor.blit(
-                RenderPipelines.GUI_TEXTURED,
-                texture,
-                startX,
-                startY,
-                0.0f,
-                0.0f,
-                16,
-                16,
-                16,
-                16
-        );
+        int frameSize = 22;
+        int marginX = 10;
+        int marginY = 10;
+        int frameX = screenWidth - frameSize - marginX;
+        int frameY = marginY;
+
+        // 1. Desenha a moldura 22x22 (com relevo e fundo semi-transparente)
+        graphicsExtractor.blit(RenderPipelines.GUI_TEXTURED, TEX_FRAME, frameX, frameY, 0.0F, 0.0F, frameSize, frameSize, frameSize, frameSize);
+
+        // 2. Desenha o ícone 16x16 centrado dentro da moldura (+3px de margem interna)
+        int iconSize = 16;
+        int iconX = frameX + 3;
+        int iconY = frameY + 3;
+        graphicsExtractor.blit(RenderPipelines.GUI_TEXTURED, texture, iconX, iconY, 0.0F, 0.0F, iconSize, iconSize, iconSize, iconSize);
     }
 }

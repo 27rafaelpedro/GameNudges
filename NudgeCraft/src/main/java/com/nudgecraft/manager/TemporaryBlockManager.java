@@ -1,4 +1,4 @@
-package com.nudgecraft.Karma.strategy;
+package com.nudgecraft.manager;
 
 import com.nudgecraft.Karma.KarmaState;
 import net.minecraft.core.BlockPos;

@@ -5,7 +5,8 @@
   "mixins": [
     "TemptGoalMixin",
     "AnimalMixin",
-    "BlockItemMixin"
+    "BlockItemMixin",
+    "PlayerDestroySpeedMixin"
   ],
   "client": [],
   "injectors": {

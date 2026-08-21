@@ -1,7 +1,7 @@
 package com.nudgecraft.mixin;
 
 import com.nudgecraft.Karma.KarmaState;
-import com.nudgecraft.Karma.strategy.KarmaEffectManager;
+import com.nudgecraft.manager.KarmaEffectManager;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.player.Player;
