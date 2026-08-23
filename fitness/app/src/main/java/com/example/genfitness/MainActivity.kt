@@ -450,7 +450,7 @@ fun StepGoalCircle(steps: Long, goal: Int = 10000) {
                 color = Color.White
             )
             Text(
-                text = "of goal",
+                text = "out of 10k",
                 style = MaterialTheme.typography.bodySmall,
                 color = Color(0xFF94A3B8)
             )
