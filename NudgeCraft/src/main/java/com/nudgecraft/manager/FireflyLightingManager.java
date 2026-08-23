@@ -63,7 +63,8 @@ public final class FireflyLightingManager {
     }
 
     /**
-     * Emite as partículas autênticas de Firefly (Firefly Bush) ao redor do jogador.
+     * Emite as partículas autênticas de Firefly (Firefly Bush) orbitando de perto o jogador
+     * e herdando a sua velocidade de movimento para que nunca fiquem para trás.
      */
     private static void spawnFireflies(ServerPlayer player, ServerLevel level, KarmaState karma) {
         int count = switch (karma) {
@@ -73,22 +74,24 @@ public final class FireflyLightingManager {
             default -> 0;
         };
 
+        net.minecraft.world.phys.Vec3 motion = player.getDeltaMovement();
+
         for (int i = 0; i < count; i++) {
-            if (level.getRandom().nextFloat() < 0.50f) {
-                double offsetX = (level.getRandom().nextDouble() - 0.5) * 4.5;
-                double offsetY = level.getRandom().nextDouble() * 2.4;
-                double offsetZ = (level.getRandom().nextDouble() - 0.5) * 4.5;
+            if (level.getRandom().nextFloat() < 0.60f) {
+                // Raio compacto ao redor do corpo do jogador (0.6 a 1.6 blocos)
+                double angle = level.getRandom().nextDouble() * 2 * Math.PI;
+                double dist = 0.5 + level.getRandom().nextDouble() * 1.1;
 
-                double px = player.getX() + offsetX;
-                double py = player.getY() + offsetY;
-                double pz = player.getZ() + offsetZ;
+                double px = player.getX() + Math.cos(angle) * dist;
+                double py = player.getY() + 0.3 + level.getRandom().nextDouble() * 1.5;
+                double pz = player.getZ() + Math.sin(angle) * dist;
 
-                // Pequeno impulso suave de flutuação vertical/horizontal
-                double vx = (level.getRandom().nextDouble() - 0.5) * 0.02;
-                double vy = (level.getRandom().nextDouble() - 0.2) * 0.03;
-                double vz = (level.getRandom().nextDouble() - 0.5) * 0.02;
+                // Herda o vetor de movimento do jogador + suave flutuação orgânica
+                double vx = motion.x * 0.85 + (level.getRandom().nextDouble() - 0.5) * 0.025;
+                double vy = motion.y * 0.85 + (level.getRandom().nextDouble() - 0.2) * 0.025;
+                double vz = motion.z * 0.85 + (level.getRandom().nextDouble() - 0.5) * 0.025;
 
-                // Partícula nativa e autêntica de pirilampos do Minecraft
+                // Partícula nativa e autêntica de pirilampos com inércia que acompanha o jogador
                 level.sendParticles(ParticleTypes.FIREFLY, px, py, pz, 1, vx, vy, vz, 0.0);
             }
         }

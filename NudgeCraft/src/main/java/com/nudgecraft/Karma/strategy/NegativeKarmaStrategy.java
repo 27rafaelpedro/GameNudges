@@ -4,8 +4,6 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.effect.MobEffectInstance;
-import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.CropBlock;
 import net.minecraft.world.level.block.StemBlock;
@@ -19,12 +17,12 @@ import com.nudgecraft.manager.TemporaryBlockManager;
 
 /**
  * Estratégia de Karma que aplica as penalizações, efeitos e decaimento ambiental
- * associados aos estados de Karma Negativo (NEGATIVE e VNEGATIVE).
+ * associados aos estados de Karma Negativo (SNEGATIVE, NEGATIVE e VNEGATIVE).
  */
 public class NegativeKarmaStrategy implements KarmaStrategy {
 
     /**
-     * Aplica os efeitos noturnos de cegueira, a exaustão por fome diurna,
+     * Aplica a taxa metabólica aumentada de fome (sem poção nem ícones),
      * partículas de login de fumo, controlo do clima hostil e murchamento/seca de plantas
      * ao redor do jogador afetado.
      *
@@ -44,57 +42,43 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
 
         KarmaState current = KarmaEffectManager.getCurrentKarma();
 
-        if (!level.isDarkOutside()) {
+        // Aumento metabólico passivo de exaustão a cada segundo (20 ticks) sem poção nem alteração visual da barra
+        if (level.getGameTime() % 20 == 0) {
             if (current == KarmaState.VNEGATIVE) {
-                player.addEffect(new MobEffectInstance(
-                        MobEffects.HUNGER,
-                        260,
-                        1,
-                        false,
-                        false,
-                        false // Ocultar ícone
-                ));
+                player.causeFoodExhaustion(0.040f); // +20% taxa acelerada
             } else if (current == KarmaState.NEGATIVE) {
-                player.addEffect(new MobEffectInstance(
-                        MobEffects.HUNGER,
-                        260,
-                        0,
-                        false,
-                        false,
-                        false // Ocultar ícone
-                ));
+                player.causeFoodExhaustion(0.025f); // +15% taxa acelerada
+            } else if (current == KarmaState.SNEGATIVE) {
+                player.causeFoodExhaustion(0.015f); // +10% taxa acelerada
             }
         }
 
 
 
+        // Controlo meteorológico periódico do servidor a cada 30 segundos (600 ticks)
         if (level.getGameTime() % 600 == 0 && level.getServer() != null) {
             boolean isRaining = level.isRaining();
             boolean isThundering = level.isThundering();
 
             if (current == KarmaState.VNEGATIVE) {
+                // VN -> 40% de probabilidade de Chuva e 20% de Trovoada
                 if (!isRaining) {
-                    if (level.getRandom().nextFloat() < 0.70f) {
-                        boolean thunder = level.getRandom().nextFloat() < 0.60f;
+                    if (level.getRandom().nextFloat() < 0.40f) {
+                        boolean thunder = level.getRandom().nextFloat() < 0.20f;
                         level.getServer().setWeatherParameters(0, 12000, true, thunder);
                     }
-                } else if (!isThundering) {
-                    if (level.getRandom().nextFloat() < 0.40f) {
-                        level.getServer().setWeatherParameters(0, 12000, true, true);
-                    }
+                } else if (!isThundering && level.getRandom().nextFloat() < 0.20f) {
+                    level.getServer().setWeatherParameters(0, 12000, true, true);
                 }
             } else if (current == KarmaState.NEGATIVE) {
+                // N -> 30% de probabilidade de Chuva (0% Trovoada)
                 if (!isRaining) {
                     if (level.getRandom().nextFloat() < 0.30f) {
-                        boolean thunder = level.getRandom().nextFloat() < 0.15f;
-                        level.getServer().setWeatherParameters(0, 12000, true, thunder);
-                    }
-                } else if (!isThundering) {
-                    if (level.getRandom().nextFloat() < 0.10f) {
-                        level.getServer().setWeatherParameters(0, 12000, true, true);
+                        level.getServer().setWeatherParameters(0, 12000, true, false);
                     }
                 }
             }
+            // SN -> 0% de chuva/trovoada forçada (mantém apenas o céu escuro e clima de trovoada visual)
         }
 
         int radius = (current == KarmaState.VNEGATIVE) ? 2 : 1;

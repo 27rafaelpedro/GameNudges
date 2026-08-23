@@ -146,10 +146,8 @@ fun EcraGenfitness(viewModel: HealthViewModel, authViewModel: AuthViewModel) {
 
     // Verificar se precisa de configurar username do Minecraft
     LaunchedEffect(user, minecraftUsername, isLoadingUsername) {
-        if (user != null && minecraftUsername == null && !isLoadingUsername) {
-            showMinecraftDialog = true
-        } else if (minecraftUsername != null) {
-            showMinecraftDialog = false
+        if (user != null && !isLoadingUsername) {
+            showMinecraftDialog = minecraftUsername == null
         }
     }
 

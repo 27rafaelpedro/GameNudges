@@ -6,7 +6,11 @@
     "TemptGoalMixin",
     "AnimalMixin",
     "BlockItemMixin",
-    "PlayerDestroySpeedMixin"
+    "PlayerDestroySpeedMixin",
+    "PlayerHungerMixin",
+    "LevelWeatherMixin",
+    "PlayerAttackMixin",
+    "PlayerJumpMixin"
   ],
   "client": [],
   "injectors": {

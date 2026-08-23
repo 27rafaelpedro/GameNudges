@@ -1,0 +1,43 @@
+# Build and cache directories
+.gradle/
+build/
+bin/
+out/
+target/
+
+# Node modules / Functions
+functions/node_modules/
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+firebase-debug.log*
+firestore-debug.log*
+
+# Minecraft Run directory (assets, logs, saves)
+NudgeCraft/run/
+run/
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
+
+# Android Studio / Gradle
+fitness/.gradle/
+fitness/build/
+fitness/app/build/
+fitness/genfitness/.gradle/
+fitness/genfitness/.idea/
+local.properties
+.cxx/
+captures/
+
+# Secrets (Chaves e credenciais)
+serviceAccountKey.json
+*.keystore
+*.jks

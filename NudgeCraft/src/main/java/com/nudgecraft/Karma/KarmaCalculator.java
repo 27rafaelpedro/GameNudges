@@ -1,11 +1,9 @@
 package com.nudgecraft.Karma;
 
-import com.google.cloud.firestore.DocumentSnapshot;
-import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.QueryDocumentSnapshot;
-import com.google.cloud.firestore.QuerySnapshot;
+import com.google.gson.JsonObject;
 import com.nudgecraft.firebase.FirebaseManager;
 import com.nudgecraft.firebase.PlayerProfileManager;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
@@ -44,115 +42,92 @@ public final class KarmaCalculator {
     private static CompletableFuture<KarmaState> calculateInternal(ServerPlayer player, boolean isLogin) {
         CompletableFuture<KarmaState> result = new CompletableFuture<>();
         MinecraftServer server = player.level().getServer();
-        Firestore db = FirebaseManager.getDb();
-
-        if (db == null) {
-            if (!isLogin) {
-                PlayerProfileManager.erro(player, server, "O Firebase não está operacional. Avisa um administrador.");
-            }
-            result.complete(KarmaState.BASE);
-            return result;
-        }
-
         String username = PlayerProfileManager.getUsername(player);
+        String uuid = player.getStringUUID();
 
-        CompletableFuture.runAsync(() -> {
-            try {
-                DocumentSnapshot profileDoc = PlayerProfileManager.getOrCreateProfile(db, player);
+        PlayerProfileManager.getOrCreateProfile(username, uuid)
+                .thenCompose(profileFields ->
+                        FirebaseManager.queryUserVisits(username)
+                                .thenAccept(docsList -> {
+                                    Long goal = FirebaseManager.getLong(profileFields, "goal", PlayerProfileManager.DEFAULT_GOAL);
+                                    if (goal == null || goal <= 0) {
+                                        goal = PlayerProfileManager.DEFAULT_GOAL;
+                                    }
 
-                Long goal = profileDoc.getLong("goal");
-                if (goal == null || goal <= 0) {
-                    goal = PlayerProfileManager.DEFAULT_GOAL;
-                }
+                                    KarmaState storedKarma = readStoredKarma(profileFields);
+                                    String lastProcessedVisitDate = FirebaseManager.getString(profileFields, "lastProcessedVisitDate", null);
+                                    Long lastProcessedGoal = FirebaseManager.getLong(profileFields, "lastProcessedGoal", null);
 
-                KarmaState storedKarma = readStoredKarma(profileDoc);
-                String lastProcessedVisitDate = profileDoc.getString("lastProcessedVisitDate");
-                Long lastProcessedGoal = profileDoc.getLong("lastProcessedGoal");
+                                    if (docsList.isEmpty()) {
+                                        sendWelcomeOrStatus(player, server, username, KarmaState.BASE, isLogin, false, 0);
+                                        result.complete(KarmaState.BASE);
+                                        return;
+                                    }
 
-                // Consulta todos os registos do jogador (até 7 dias) sem exigir índice composto no Firestore
-                QuerySnapshot snapshot = db.collection("user_visits")
-                        .whereEqualTo("minecraft_username", username)
-                        .get()
-                        .get();
+                                    List<JsonObject> docs = new ArrayList<>(docsList);
+                                    docs.sort((d1, d2) -> {
+                                        JsonObject f1 = d1.has("fields") ? d1.getAsJsonObject("fields") : null;
+                                        JsonObject f2 = d2.has("fields") ? d2.getAsJsonObject("fields") : null;
+                                        String date1 = FirebaseManager.getString(f1, "date", "");
+                                        String date2 = FirebaseManager.getString(f2, "date", "");
+                                        return date2.compareTo(date1);
+                                    });
 
-                List<QueryDocumentSnapshot> docs = new ArrayList<>(snapshot.getDocuments());
-                // Ordena por data decrescente em memória
-                docs.sort((d1, d2) -> {
-                    String date1 = d1.getString("date");
-                    String date2 = d2.getString("date");
-                    if (date1 == null && date2 == null) return 0;
-                    if (date1 == null) return 1;
-                    if (date2 == null) return -1;
-                    return date2.compareTo(date1);
-                });
+                                    JsonObject latestDoc = docs.get(0);
+                                    JsonObject latestFields = latestDoc.has("fields") ? latestDoc.getAsJsonObject("fields") : null;
+                                    String latestVisitDate = FirebaseManager.getString(latestFields, "date", null);
 
-                // Cenário 1: Nenhum registo de passos ou apenas o primeiro dia sem dados de ontem
-                if (docs.isEmpty()) {
+                                    JsonObject processedDoc = null;
+                                    if (isToday(latestVisitDate)) {
+                                        if (docs.size() >= 2) {
+                                            processedDoc = docs.get(1);
+                                        }
+                                    } else {
+                                        processedDoc = latestDoc;
+                                    }
+
+                                    if (processedDoc == null) {
+                                        sendWelcomeOrStatus(player, server, username, storedKarma, isLogin, false, 0);
+                                        result.complete(storedKarma);
+                                        return;
+                                    }
+
+                                    JsonObject processedFields = processedDoc.has("fields") ? processedDoc.getAsJsonObject("fields") : null;
+                                    String visitDate = FirebaseManager.getString(processedFields, "date", null);
+                                    Long stepsOntem = FirebaseManager.getLong(processedFields, "steps", null);
+
+                                    if (visitDate == null || stepsOntem == null) {
+                                        sendWelcomeOrStatus(player, server, username, storedKarma, isLogin, false, 0);
+                                        result.complete(storedKarma);
+                                        return;
+                                    }
+
+                                    KarmaState currentKarma = storedKarma;
+
+                                    // Processa a evolução de karma apenas se for um novo dia ou a meta tiver mudado
+                                    if (!visitDate.equals(lastProcessedVisitDate) || !goal.equals(lastProcessedGoal)) {
+                                        KarmaState baseKarma = storedKarma;
+                                        if (visitDate.equals(lastProcessedVisitDate)) {
+                                            baseKarma = readKarmaBeforeLastProcessedVisit(profileFields);
+                                        }
+
+                                        boolean goalAchieved = stepsOntem >= goal;
+                                        currentKarma = calculateFromGoal(baseKarma, goalAchieved);
+                                        updatePlayerKarma(username, currentKarma, baseKarma, visitDate, goal);
+                                    }
+
+                                    sendWelcomeOrStatus(player, server, username, currentKarma, isLogin, true, stepsOntem);
+                                    result.complete(currentKarma);
+                                }))
+                .exceptionally(ex -> {
+                    LOGGER.error("[Nudgecraft] Erro ao calcular karma de {}", username, ex);
+                    if (!isLogin) {
+                        PlayerProfileManager.erro(player, server, "Erro ao comunicar com o Firestore.");
+                    }
                     sendWelcomeOrStatus(player, server, username, KarmaState.BASE, isLogin, false, 0);
                     result.complete(KarmaState.BASE);
-                    return;
-                }
-
-                DocumentSnapshot latestDoc = docs.get(0);
-                String latestVisitDate = latestDoc.getString("date");
-
-                DocumentSnapshot processedVisit = null;
-
-                if (isToday(latestVisitDate)) {
-                    // Se o primeiro documento for de hoje, precisamos do segundo documento para saber os passos de ontem
-                    if (docs.size() >= 2) {
-                        processedVisit = docs.get(1);
-                    }
-                } else {
-                    // Se o documento mais recente não for de hoje, ele representa o dia anterior com registo
-                    processedVisit = latestDoc;
-                }
-
-                if (processedVisit == null) {
-                    // Estamos no primeiro dia (apenas existe registo de hoje)
-                    sendWelcomeOrStatus(player, server, username, storedKarma, isLogin, false, 0);
-                    result.complete(storedKarma);
-                    return;
-                }
-
-                String visitDate = processedVisit.getString("date");
-                Long stepsOntem = processedVisit.getLong("steps");
-
-                if (visitDate == null || stepsOntem == null) {
-                    sendWelcomeOrStatus(player, server, username, storedKarma, isLogin, false, 0);
-                    result.complete(storedKarma);
-                    return;
-                }
-
-                KarmaState currentKarma = storedKarma;
-
-                // Processa a evolução de karma apenas se for um novo dia ou a meta tiver mudado
-                if (!visitDate.equals(lastProcessedVisitDate) || !goal.equals(lastProcessedGoal)) {
-                    KarmaState baseKarma = storedKarma;
-                    if (visitDate.equals(lastProcessedVisitDate)) {
-                        baseKarma = readKarmaBeforeLastProcessedVisit(profileDoc);
-                    }
-
-                    boolean goalAchieved = stepsOntem >= goal;
-                    currentKarma = calculateFromGoal(baseKarma, goalAchieved);
-                    updatePlayerKarma(db, username, currentKarma, baseKarma, visitDate, goal);
-                }
-
-                // Envia a mensagem correspondente
-                sendWelcomeOrStatus(player, server, username, currentKarma, isLogin, true, stepsOntem);
-                result.complete(currentKarma);
-
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                result.completeExceptionally(e);
-            } catch (Exception e) {
-                LOGGER.error("[Nudgecraft] Erro ao calcular karma de {}", username, e);
-                if (!isLogin) {
-                    PlayerProfileManager.erro(player, server, "Erro ao comunicar com o Firebase.");
-                }
-                result.completeExceptionally(e);
-            }
-        }, FirebaseManager.FIREBASE_EXECUTOR);
+                    return null;
+                });
 
         return result;
     }
@@ -168,7 +143,7 @@ public final class KarmaCalculator {
     ) {
         FirebaseManager.onServerThread(server, () -> {
             // Sincroniza o Karma atual com o cliente via rede para atualização imediata do HUD
-            net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(player, new KarmaPayload(karma.name()));
+            ServerPlayNetworking.send(player, new KarmaPayload(karma.name()));
 
             // Atualiza a estratégia do jogador no servidor
             com.nudgecraft.manager.KarmaEffectManager.updateStrategy(karma);
@@ -229,26 +204,24 @@ public final class KarmaCalculator {
     }
 
     private static void updatePlayerKarma(
-            Firestore db,
             String username,
             KarmaState karmaState,
             KarmaState karmaBeforeProcessedVisit,
             String processedVisitDate,
             Long processedGoal
-    ) throws Exception {
-        db.collection("players")
-                .document(username)
-                .update(
-                        "karma", karmaState.name(),
-                        "lastProcessedVisitDate", processedVisitDate,
-                        "lastProcessedGoal", processedGoal,
-                        "karmaBeforeLastProcessedVisit", karmaBeforeProcessedVisit.name()
-                )
-                .get();
+    ) {
+        JsonObject fields = new JsonObject();
+        fields.add("karma", FirebaseManager.stringField(karmaState.name()));
+        fields.add("lastProcessedVisitDate", FirebaseManager.stringField(processedVisitDate));
+        fields.add("lastProcessedGoal", FirebaseManager.integerField(processedGoal));
+        fields.add("karmaBeforeLastProcessedVisit", FirebaseManager.stringField(karmaBeforeProcessedVisit.name()));
+
+        List<String> mask = List.of("karma", "lastProcessedVisitDate", "lastProcessedGoal", "karmaBeforeLastProcessedVisit");
+        FirebaseManager.patchDocument("players", username, fields, mask);
     }
 
-    private static KarmaState readStoredKarma(DocumentSnapshot profileDoc) {
-        String storedKarma = profileDoc.getString("karma");
+    private static KarmaState readStoredKarma(JsonObject profileFields) {
+        String storedKarma = FirebaseManager.getString(profileFields, "karma", null);
 
         if (storedKarma == null) {
             return KarmaState.BASE;
@@ -257,14 +230,13 @@ public final class KarmaCalculator {
         try {
             return KarmaState.valueOf(storedKarma);
         } catch (IllegalArgumentException e) {
-            LOGGER.warn("[Nudgecraft] Karma inválido guardado para {}: {}",
-                    profileDoc.getId(), storedKarma);
+            LOGGER.warn("[Nudgecraft] Karma inválido guardado: {}", storedKarma);
             return KarmaState.BASE;
         }
     }
 
-    private static KarmaState readKarmaBeforeLastProcessedVisit(DocumentSnapshot profileDoc) {
-        String storedKarma = profileDoc.getString("karmaBeforeLastProcessedVisit");
+    private static KarmaState readKarmaBeforeLastProcessedVisit(JsonObject profileFields) {
+        String storedKarma = FirebaseManager.getString(profileFields, "karmaBeforeLastProcessedVisit", null);
 
         if (storedKarma == null) {
             return KarmaState.BASE;
@@ -273,8 +245,7 @@ public final class KarmaCalculator {
         try {
             return KarmaState.valueOf(storedKarma);
         } catch (IllegalArgumentException e) {
-            LOGGER.warn("[Nudgecraft] Karma anterior inválido guardado para {}: {}",
-                    profileDoc.getId(), storedKarma);
+            LOGGER.warn("[Nudgecraft] Karma anterior inválido guardado: {}", storedKarma);
             return KarmaState.BASE;
         }
     }

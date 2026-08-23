@@ -68,7 +68,7 @@ public final class KarmaHudOverlay {
         int frameSize = 22;
         int marginX = 10;
         int marginY = 10;
-        int frameX = screenWidth - frameSize - marginX;
+        int frameX = marginX; // Canto superior esquerdo (evita sobreposição com poções no topo direito)
         int frameY = marginY;
 
         // 1. Desenha a moldura 22x22 (com relevo e fundo semi-transparente)

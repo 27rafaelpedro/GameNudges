@@ -22,6 +22,13 @@ public abstract class PlayerDestroySpeedMixin {
     @Inject(method = "getDestroySpeed", at = @At("RETURN"), cancellable = true)
     private void onGetDestroySpeed(BlockState state, CallbackInfoReturnable<Float> cir) {
         Player player = (Player) (Object) this;
+
+        // Se estiver sob efeito de Fadiga de Karma Negativo, reduz a velocidade para metade
+        if (com.nudgecraft.manager.FatigueManager.isFatigued(player.getUUID())) {
+            cir.setReturnValue(cir.getReturnValue() * 0.50f);
+            return;
+        }
+
         if (player.getMainHandItem().isEmpty()) {
             KarmaState current = KarmaStateHolder.get();
             float multiplier = 1.0f;

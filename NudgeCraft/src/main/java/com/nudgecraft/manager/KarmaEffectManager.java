@@ -4,11 +4,13 @@ import com.nudgecraft.Karma.KarmaState;
 import com.nudgecraft.Karma.strategy.KarmaStrategy;
 import com.nudgecraft.Karma.strategy.NegativeKarmaStrategy;
 import com.nudgecraft.Karma.strategy.PositiveKarmaStrategy;
+import net.minecraft.core.Holder;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.clock.WorldClock;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
 import net.minecraft.world.entity.ai.attributes.Attributes;
@@ -72,9 +74,9 @@ public final class KarmaEffectManager {
         com.nudgecraft.Karma.KarmaStateHolder.set(currentKarma);
 
         switch (currentKarma) {
-            case POSITIVE, VPOSITIVE -> activeStrategy = new PositiveKarmaStrategy();
-            case NEGATIVE, VNEGATIVE -> activeStrategy = new NegativeKarmaStrategy();
-            case SPOSITIVE, SNEGATIVE, BASE -> activeStrategy = (player, level) -> {};
+            case SPOSITIVE, POSITIVE, VPOSITIVE -> activeStrategy = new PositiveKarmaStrategy();
+            case SNEGATIVE, NEGATIVE, VNEGATIVE -> activeStrategy = new NegativeKarmaStrategy();
+            case BASE -> activeStrategy = (player, level) -> {};
         }
     }
 
@@ -105,10 +107,12 @@ public final class KarmaEffectManager {
      */
     public static void tick(ServerPlayer player, ServerLevel level) {
         managePositiveSpeed(player, level);
+        manageDaytimeSpeed(level);
         updateCropMessageState(player);
         trackPlayTime(player);
         OreVeinManager.tick(player, level);
         FireflyLightingManager.tick(player, level);
+        FatigueManager.tick(player, level);
         activeStrategy.applyPassiveEffects(player, level);
     }
 
@@ -124,7 +128,7 @@ public final class KarmaEffectManager {
 
         if (ticks >= 36000) { // 30 minutos (36.000 ticks)
             player.sendSystemMessage(
-                    Component.literal("§6[Nudgecraft] Já estás a jogar há 30 minutos! Lembra-te de fazer uma pausa e manter-te ativo.")
+                    Component.literal("§6Já estás a jogar há 30 minutos! Lembra-te de fazer uma pausa e manter-te ativo.")
             );
             PLAY_TIME_TICKS.put(uuid, 0);
         } else {
@@ -321,6 +325,39 @@ public final class KarmaEffectManager {
             if (attributeInstance.hasModifier(POSITIVE_SPEED_MODIFIER_ID)) {
                 attributeInstance.removeModifier(POSITIVE_SPEED_MODIFIER_ID);
             }
+        }
+    }
+
+    /**
+     * Acelera a passagem do dia para que a noite chegue mais rápido nos estados de Karma Negativo:
+     * - SNEGATIVE: +10% de velocidade durante o dia (taxa 1.10x)
+     * - NEGATIVE:  +15% de velocidade durante o dia (taxa 1.15x)
+     * - VNEGATIVE: +20% de velocidade durante o dia (taxa 1.20x)
+     * À noite ou em estados neutros/positivos, o relógio corre à velocidade normal (1.00x).
+     */
+    private static void manageDaytimeSpeed(ServerLevel level) {
+        if (level == null || level.getServer() == null) {
+            return;
+        }
+
+        // Verifica a taxa alvo conforme o Karma e o período do dia
+        KarmaState current = getCurrentKarma();
+        boolean isDay = !level.isDarkOutside();
+
+        float targetRate = 1.0f;
+        if (isDay) {
+            if (current == KarmaState.SNEGATIVE) {
+                targetRate = 1.10f; // +10%
+            } else if (current == KarmaState.NEGATIVE) {
+                targetRate = 1.15f; // +15%
+            } else if (current == KarmaState.VNEGATIVE) {
+                targetRate = 1.20f; // +20%
+            }
+        }
+
+        Holder<WorldClock> clock = level.dimensionTypeRegistration().value().defaultClock().orElse(null);
+        if (clock != null) {
+            level.getServer().clockManager().setRate(clock, targetRate);
         }
     }
 }

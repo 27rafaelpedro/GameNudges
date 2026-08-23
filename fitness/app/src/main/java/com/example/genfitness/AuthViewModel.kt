@@ -30,21 +30,25 @@ class AuthViewModel : ViewModel() {
     private val _minecraftUsername = MutableStateFlow<String?>(null)
     val minecraftUsername: StateFlow<String?> = _minecraftUsername
 
-    private val _isLoadingUsername = MutableStateFlow(false)
+    private val _isLoadingUsername = MutableStateFlow(true) // Começa como true para evitar flash do popup
     val isLoadingUsername: StateFlow<Boolean> = _isLoadingUsername
 
     fun initUsername(context: Context) {
-        val email = auth.currentUser?.email ?: return
+        val email = auth.currentUser?.email ?: run {
+            _isLoadingUsername.value = false
+            return
+        }
+        
         val prefs = context.getSharedPreferences("genfitness_prefs", Context.MODE_PRIVATE)
         val localUsername = prefs.getString("minecraft_username", null)
         
         if (localUsername != null) {
             _minecraftUsername.value = localUsername
+            _isLoadingUsername.value = false
             return
         }
 
         // Se não houver localmente, verificar na Cloud
-        _isLoadingUsername.value = true
         viewModelScope.launch {
             try {
                 val doc = db.collection("users").document(email).get().await()

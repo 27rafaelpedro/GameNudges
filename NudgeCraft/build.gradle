@@ -22,49 +22,12 @@ loom {
 	}
 }
 
-// Configuração auxiliar: serve para resolver o grafo completo de dependências do
-// Firebase Admin SDK. O `include` do Loom só embute o artefacto indicado, não as
-// suas transitivas — sem isto o mod rebenta com NoClassDefFoundError em runtime.
-configurations {
-	firebaseLib
-	implementation.extendsFrom firebaseLib
-}
-
 dependencies {
 	minecraft "com.mojang:minecraft:${project.minecraft_version}"
 
-	// O Minecraft 26.2 é distribuído já não-ofuscado: não se declaram mappings.
-	// Os nomes das classes são os oficiais da Mojang (ServerPlayer, Component, Commands, ...).
-
-	// Sem ofuscação não existem as configurações `mod*` do Loom — usa-se `implementation`.
+	// O Minecraft é distribuído já não-ofuscado nas versões recentes da Mojang.
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
-
-	// Firebase Admin SDK
-	firebaseLib("com.google.firebase:firebase-admin:${project.firebase_version}") {
-		// Jar vazio e com uma versão que o Fabric Loader não consegue interpretar.
-		exclude group: 'com.google.guava', module: 'listenablefuture'
-	}
-}
-
-// Embute (jar-in-jar) o Firebase Admin SDK e todas as suas transitivas.
-afterEvaluate {
-	def incluidos = [] as Set
-
-	configurations.firebaseLib.resolvedConfiguration.resolvedArtifacts.each { artifact ->
-		if (artifact.extension != 'jar') {
-			return
-		}
-
-		def id = artifact.moduleVersion.id
-		def coordenadas = "${id.group}:${id.name}:${id.version}"
-
-		if (incluidos.add(coordenadas)) {
-			dependencies.add('include', coordenadas)
-		}
-	}
-
-	logger.lifecycle("[Nudgecraft] ${incluidos.size()} jars embutidos para o Firebase Admin SDK.")
 }
 
 processResources {

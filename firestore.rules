@@ -1,0 +1,20 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Coleção users (utilizadores da aplicação móvel)
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+
+    // Coleção user_visits (registo de passos diários)
+    match /user_visits/{visitId} {
+      allow read, write: if true;
+    }
+
+    // Coleção players (perfil do jogador, metas e estado de Karma)
+    match /players/{username} {
+      allow read, write: if true;
+    }
+  }
+}
