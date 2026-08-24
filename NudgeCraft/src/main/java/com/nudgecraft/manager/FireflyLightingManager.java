@@ -4,6 +4,7 @@ import com.nudgecraft.Karma.KarmaState;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
@@ -15,31 +16,53 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Gestor de Pirilampos (Fireflies) e Iluminação Dinâmica Noturna Permanente e Sem Piscar.
+ * Gestor de Pirilampos (Fireflies), Iluminação Dinâmica e Mensagens Atmosféricas de Escuridão.
  * - SPOSITIVE: Partículas nativas de Firefly ao redor do jogador, sem iluminação nos blocos.
  * - POSITIVE:  Partículas nativas de Firefly + iluminação suave estável (Nível 6).
  * - VPOSITIVE: Partículas nativas de Firefly + iluminação forte estável (Nível 12).
- * Funciona de forma estável e contínua, inclusive ao subir vinhas (vines), árvores ou bambu.
+ *
+ * Envia mensagens na Action Bar ao afastar-se de fontes de luz (com cooldown para evitar repetições):
+ * - VPOSITIVE: "A natureza ilumina o teu caminho!"
+ * - VNEGATIVE: "A tua visão falha.."
  */
 public final class FireflyLightingManager {
 
     private static final Map<UUID, BlockPos> ACTIVE_LIGHT_BLOCKS = new ConcurrentHashMap<>();
+    private static final Map<UUID, Boolean> WAS_NEAR_LIGHT = new ConcurrentHashMap<>();
+    private static final Map<UUID, Integer> LIGHT_MSG_COOLDOWN = new ConcurrentHashMap<>();
+
+    /** Cooldown de 60 segundos (1200 ticks) entre mensagens de iluminação para evitar spam */
+    private static final int MSG_COOLDOWN_TICKS = 1200;
 
     private FireflyLightingManager() {
     }
 
     /**
-     * Processa a emissão de pirilampos e a iluminação dinâmica estável a cada tick.
+     * Processa a emissão de pirilampos, iluminação dinâmica e mensagens de luz a cada tick.
      */
     public static void tick(ServerPlayer player, ServerLevel level) {
         UUID uuid = player.getUUID();
         KarmaState current = KarmaEffectManager.getCurrentKarma();
 
+        // Atualiza cooldown de mensagens
+        int cooldown = LIGHT_MSG_COOLDOWN.getOrDefault(uuid, 0);
+        if (cooldown > 0) {
+            LIGHT_MSG_COOLDOWN.put(uuid, cooldown - 1);
+        }
+
         boolean isPositiveKarma = (current == KarmaState.SPOSITIVE || current == KarmaState.POSITIVE || current == KarmaState.VPOSITIVE);
         boolean isNight = level.isDarkOutside();
 
-        // Verifica se o jogador está numa zona escura e afastado de fontes de luz artificiais (tochas, glowstone, etc.)
+        // Verifica se o jogador está perto de fontes de luz artificiais (tochas, lanternas, glowstone, lava, etc.)
         boolean isNearTorch = isNearArtificialLight(level, player.blockPosition(), 5);
+        boolean wasNearTorch = WAS_NEAR_LIGHT.getOrDefault(uuid, true);
+
+        // Deteta transição: o jogador estava perto da luz e agora afastou-se para a escuridão
+        if (wasNearTorch && !isNearTorch) {
+            handleMovingAwayFromLight(player, level, uuid, current, isNight);
+        }
+        WAS_NEAR_LIGHT.put(uuid, isNearTorch);
+
         boolean shouldBeActive = isPositiveKarma && isNight && !isNearTorch;
 
         if (shouldBeActive) {
@@ -54,7 +77,7 @@ public final class FireflyLightingManager {
                 lightLevel = 12; // Iluminação mais forte e clara
             }
 
-            // 3. Atualizar a posição do bloco de luz dinâmica de forma estável (mesmo em vinhas)
+            // 3. Atualizar a posição do bloco de luz dinâmica de forma estável
             updatePlayerLight(player, level, uuid, lightLevel);
         } else {
             // Se for de dia, houver tochas por perto ou não for karma positivo, desliga a luz
@@ -63,8 +86,41 @@ public final class FireflyLightingManager {
     }
 
     /**
-     * Emite as partículas autênticas de Firefly (Firefly Bush) orbitando de perto o jogador
-     * e herdando a sua velocidade de movimento para que nunca fiquem para trás.
+     * Aciona a mensagem na Action Bar ao afastar-se de fontes de luz caso o cooldown tenha expirado.
+     */
+    private static void handleMovingAwayFromLight(ServerPlayer player, ServerLevel level, UUID uuid, KarmaState karma, boolean isNight) {
+        int cooldown = LIGHT_MSG_COOLDOWN.getOrDefault(uuid, 0);
+        if (cooldown > 0) {
+            return;
+        }
+
+        if (karma == KarmaState.VPOSITIVE || karma == KarmaState.POSITIVE) {
+            if (isNight) {
+                player.sendSystemMessage(
+                        Component.literal("A natureza ilumina o teu caminho!")
+                                .withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC),
+                        true
+                );
+                LIGHT_MSG_COOLDOWN.put(uuid, MSG_COOLDOWN_TICKS);
+            }
+        } else if (karma == KarmaState.VNEGATIVE || karma == KarmaState.NEGATIVE) {
+            if (isNight) {
+                player.sendSystemMessage(
+                        Component.literal("A tua visão falha..")
+                                .withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC),
+                        true
+                );
+                level.sendParticles(ParticleTypes.SMOKE,
+                        player.getX(), player.getY() + 1.2, player.getZ(),
+                        5, 0.3, 0.3, 0.3, 0.01);
+                LIGHT_MSG_COOLDOWN.put(uuid, MSG_COOLDOWN_TICKS);
+            }
+        }
+    }
+
+    /**
+     * Emite as partículas autênticas de Firefly (Firefly Bush) orbitando o jogador
+     * e herdando a sua velocidade de movimento.
      */
     private static void spawnFireflies(ServerPlayer player, ServerLevel level, KarmaState karma) {
         int count = switch (karma) {
@@ -78,7 +134,6 @@ public final class FireflyLightingManager {
 
         for (int i = 0; i < count; i++) {
             if (level.getRandom().nextFloat() < 0.60f) {
-                // Raio compacto ao redor do corpo do jogador (0.6 a 1.6 blocos)
                 double angle = level.getRandom().nextDouble() * 2 * Math.PI;
                 double dist = 0.5 + level.getRandom().nextDouble() * 1.1;
 
@@ -86,12 +141,10 @@ public final class FireflyLightingManager {
                 double py = player.getY() + 0.3 + level.getRandom().nextDouble() * 1.5;
                 double pz = player.getZ() + Math.sin(angle) * dist;
 
-                // Herda o vetor de movimento do jogador + suave flutuação orgânica
                 double vx = motion.x * 0.85 + (level.getRandom().nextDouble() - 0.5) * 0.025;
                 double vy = motion.y * 0.85 + (level.getRandom().nextDouble() - 0.2) * 0.025;
                 double vz = motion.z * 0.85 + (level.getRandom().nextDouble() - 0.5) * 0.025;
 
-                // Partícula nativa e autêntica de pirilampos com inércia que acompanha o jogador
                 level.sendParticles(ParticleTypes.FIREFLY, px, py, pz, 1, vx, vy, vz, 0.0);
             }
         }
@@ -99,7 +152,6 @@ public final class FireflyLightingManager {
 
     /**
      * Atualiza o bloco invisível de luz dinâmica que acompanha os movimentos do jogador sem piscar.
-     * Encontra uma posição válida mesmo se o jogador estiver em vinhas, bambu ou folhagem.
      */
     private static void updatePlayerLight(ServerPlayer player, ServerLevel level, UUID uuid, int lightLevel) {
         if (lightLevel <= 0) {
@@ -114,7 +166,6 @@ public final class FireflyLightingManager {
 
         BlockPos oldPos = ACTIVE_LIGHT_BLOCKS.get(uuid);
 
-        // Se o jogador se moveu para outra posição de luz válida
         if (oldPos != null && !oldPos.equals(targetPos)) {
             BlockState oldState = level.getBlockState(oldPos);
             if (oldState.is(Blocks.LIGHT)) {
@@ -136,32 +187,27 @@ public final class FireflyLightingManager {
 
     /**
      * Encontra a melhor posição para o bloco de luz ao redor do jogador.
-     * Suporta vinhas (vines), bambu, folhagem e espaços abertos.
      */
     private static BlockPos findBestLightPosition(ServerPlayer player, ServerLevel level) {
         BlockPos headPos = player.blockPosition().above();
         BlockState headState = level.getBlockState(headPos);
 
-        // 1. Posição ideal na cabeça se for ar ou já for o nosso bloco de luz
         if (headState.isAir() || headState.is(Blocks.LIGHT)) {
             return headPos;
         }
 
-        // 2. Posição nos pés do jogador
         BlockPos feetPos = player.blockPosition();
         BlockState feetState = level.getBlockState(feetPos);
         if (feetState.isAir() || feetState.is(Blocks.LIGHT)) {
             return feetPos;
         }
 
-        // 3. Posição 1 bloco acima da cabeça (ao subir vinhas numa parede)
         BlockPos topPos = headPos.above();
         BlockState topState = level.getBlockState(topPos);
         if (topState.isAir() || topState.is(Blocks.LIGHT)) {
             return topPos;
         }
 
-        // 4. Posições horizontais adjacentes à cabeça (ao escalar vinhas encostado a blocos sólidos)
         for (Direction dir : Direction.Plane.HORIZONTAL) {
             BlockPos sidePos = headPos.relative(dir);
             BlockState sideState = level.getBlockState(sidePos);
@@ -170,7 +216,6 @@ public final class FireflyLightingManager {
             }
         }
 
-        // 5. Posições horizontais adjacentes aos pés
         for (Direction dir : Direction.Plane.HORIZONTAL) {
             BlockPos sideFeetPos = feetPos.relative(dir);
             BlockState sideFeetState = level.getBlockState(sideFeetPos);
@@ -183,8 +228,7 @@ public final class FireflyLightingManager {
     }
 
     /**
-     * Verifica se existem fontes de luz artificiais (tochas, lanternas, glowstone, lava, etc.)
-     * nas proximidades do jogador, excluindo o bloco de luz gerado pelo próprio mod.
+     * Verifica se existem fontes de luz artificiais nas proximidades do jogador.
      */
     private static boolean isNearArtificialLight(ServerLevel level, BlockPos center, int radius) {
         int rSq = radius * radius;
@@ -195,7 +239,6 @@ public final class FireflyLightingManager {
                         BlockPos checkPos = center.offset(dx, dy, dz);
                         BlockState state = level.getBlockState(checkPos);
                         if (!state.isAir() && !state.is(Blocks.LIGHT)) {
-                            // Se o bloco emite luz significativa (tocha, lanterna, glowstone, etc.)
                             if (state.getLightEmission() >= 8) {
                                 return true;
                             }
@@ -224,8 +267,11 @@ public final class FireflyLightingManager {
      * Limpa recursos quando o jogador sai do servidor.
      */
     public static void onPlayerDisconnect(ServerPlayer player) {
+        UUID uuid = player.getUUID();
+        WAS_NEAR_LIGHT.remove(uuid);
+        LIGHT_MSG_COOLDOWN.remove(uuid);
         if (player.level() instanceof ServerLevel serverLevel) {
-            clearPlayerLight(serverLevel, player.getUUID());
+            clearPlayerLight(serverLevel, uuid);
         }
     }
 }

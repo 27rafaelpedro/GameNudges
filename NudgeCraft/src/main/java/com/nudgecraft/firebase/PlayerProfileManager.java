@@ -9,6 +9,7 @@ import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -26,7 +27,7 @@ public final class PlayerProfileManager {
 
     /**
      * Obtém ou inicializa o perfil do jogador no Firestore (coleção 'players').
-     * Retorna os fields do documento JSON.
+     * Garante que novos jogadores começam sempre no Karma BASE, ignorando passos anteriores ao registo.
      */
     public static CompletableFuture<JsonObject> getOrCreateProfile(String username, String uuid) {
         return FirebaseManager.getDocument("players", username)
@@ -35,13 +36,19 @@ public final class PlayerProfileManager {
                         return CompletableFuture.completedFuture(doc.getAsJsonObject("fields"));
                     }
 
-                    // Criar perfil inicial se não existir
+                    String today = LocalDate.now().toString();
+                    String yesterday = LocalDate.now().minusDays(1).toString();
+
+                    // Criar perfil inicial de novo participante sempre em Karma BASE
                     JsonObject initialFields = new JsonObject();
                     initialFields.add("minecraft_username", FirebaseManager.stringField(username));
                     initialFields.add("uuid", FirebaseManager.stringField(uuid));
                     initialFields.add("goal", FirebaseManager.integerField(DEFAULT_GOAL));
                     initialFields.add("karma", FirebaseManager.stringField(KarmaState.BASE.name()));
                     initialFields.add("karmaBeforeLastProcessedVisit", FirebaseManager.stringField(KarmaState.BASE.name()));
+                    initialFields.add("registrationDate", FirebaseManager.stringField(today));
+                    initialFields.add("lastProcessedVisitDate", FirebaseManager.stringField(yesterday));
+                    initialFields.add("lastProcessedGoal", FirebaseManager.integerField(DEFAULT_GOAL));
 
                     return FirebaseManager.patchDocument("players", username, initialFields, null)
                             .thenApply(createdDoc -> createdDoc != null && createdDoc.has("fields")

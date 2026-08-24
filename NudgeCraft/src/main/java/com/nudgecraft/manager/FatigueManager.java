@@ -33,8 +33,37 @@ public final class FatigueManager {
     private static final Identifier FATIGUE_BREAK_SPEED_ID = Identifier.fromNamespaceAndPath("nudgecraft", "fatigue_block_break_speed");
     private static final Identifier FATIGUE_JUMP_STRENGTH_ID = Identifier.fromNamespaceAndPath("nudgecraft", "fatigue_jump_strength");
 
+    /** Período de carência inicial ao entrar no jogo: 60 segundos (1200 ticks) sem fadiga. */
+    public static final int INITIAL_LOGIN_GRACE_TICKS = 1200;
+
     private static final Map<UUID, Integer> FATIGUE_TICKS = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> COOLDOWN_TICKS = new ConcurrentHashMap<>();
+
+    private FatigueManager() {
+    }
+
+    /**
+     * Acionado quando o jogador entra no servidor/mundo.
+     * Define um delay inicial de segurança para não sofrer fadiga logo ao entrar.
+     */
+    public static void onPlayerJoin(ServerPlayer player) {
+        if (player == null) return;
+        UUID uuid = player.getUUID();
+        COOLDOWN_TICKS.put(uuid, INITIAL_LOGIN_GRACE_TICKS);
+        FATIGUE_TICKS.remove(uuid);
+        removeFatigueModifiers(player);
+    }
+
+    /**
+     * Limpa o estado de fadiga do jogador ao desconectar.
+     */
+    public static void onPlayerDisconnect(ServerPlayer player) {
+        if (player == null) return;
+        UUID uuid = player.getUUID();
+        COOLDOWN_TICKS.remove(uuid);
+        FATIGUE_TICKS.remove(uuid);
+        removeFatigueModifiers(player);
+    }
 
     public static boolean isFatigued(UUID uuid) {
         return FATIGUE_TICKS.getOrDefault(uuid, 0) > 0;
@@ -44,8 +73,14 @@ public final class FatigueManager {
         if (player == null || level == null) return;
         UUID uuid = player.getUUID();
 
-        // Se já estiver fatigado ou em cooldown de ativação recente, não re-dispara
+        // Se já estiver fatigado ou em cooldown de ativação recente / grace period de login, não dispara
         if (isFatigued(uuid) || COOLDOWN_TICKS.getOrDefault(uuid, 0) > 0) {
+            return;
+        }
+
+        // Delay adicional de segurança baseado no timestamp de login (mínimo 60s)
+        long elapsedSinceLogin = System.currentTimeMillis() - KarmaEffectManager.getServerLoginTime();
+        if (elapsedSinceLogin < 60_000) {
             return;
         }
 

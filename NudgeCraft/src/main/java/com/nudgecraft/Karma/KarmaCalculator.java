@@ -25,25 +25,22 @@ public final class KarmaCalculator {
     }
 
     /**
-     * Executado quando o jogador entra no jogo/servidor.
-     * Calcula o Karma e envia a mensagem narrativa correspondente.
+     * Ponto de entrada chamado no login do jogador para calcular e sincronizar o Karma.
      */
-    public static CompletableFuture<KarmaState> processPlayerLogin(ServerPlayer player) {
-        return calculateInternal(player, true);
+    public static void processPlayerLogin(ServerPlayer player) {
+        calculateKarma(player, true);
     }
 
     /**
-     * Executado quando o jogador usa o comando /karma.
+     * Calcula o Karma do jogador com base nos passos de ontem registados a partir da data de registo/instalação.
+     * Ignora quaisquer registos históricos anteriores ao dia de entrada no estudo.
      */
-    public static CompletableFuture<KarmaState> calculate(ServerPlayer player) {
-        return calculateInternal(player, false);
-    }
-
-    private static CompletableFuture<KarmaState> calculateInternal(ServerPlayer player, boolean isLogin) {
-        CompletableFuture<KarmaState> result = new CompletableFuture<>();
-        MinecraftServer server = player.level().getServer();
+    public static CompletableFuture<KarmaState> calculateKarma(ServerPlayer player, boolean isLogin) {
         String username = PlayerProfileManager.getUsername(player);
         String uuid = player.getStringUUID();
+        MinecraftServer server = player.level().getServer();
+
+        CompletableFuture<KarmaState> result = new CompletableFuture<>();
 
         PlayerProfileManager.getOrCreateProfile(username, uuid)
                 .thenCompose(profileFields ->
@@ -55,16 +52,34 @@ public final class KarmaCalculator {
                                     }
 
                                     KarmaState storedKarma = readStoredKarma(profileFields);
+                                    String registrationDate = FirebaseManager.getString(profileFields, "registrationDate", null);
                                     String lastProcessedVisitDate = FirebaseManager.getString(profileFields, "lastProcessedVisitDate", null);
                                     Long lastProcessedGoal = FirebaseManager.getLong(profileFields, "lastProcessedGoal", null);
 
-                                    if (docsList.isEmpty()) {
+                                    // Se for o primeiro acesso absoluto, inicializa a data de registo para hoje
+                                    if (registrationDate == null) {
+                                        registrationDate = LocalDate.now().toString();
+                                    }
+
+                                    final String finalRegDate = registrationDate;
+
+                                    // Filtra registos anteriores à data de instalação/registo do jogador
+                                    List<JsonObject> docs = new ArrayList<>();
+                                    for (JsonObject d : docsList) {
+                                        JsonObject f = d.has("fields") ? d.getAsJsonObject("fields") : null;
+                                        String dDate = FirebaseManager.getString(f, "date", "");
+                                        if (dDate.compareTo(finalRegDate) >= 0) {
+                                            docs.add(d);
+                                        }
+                                    }
+
+                                    if (docs.isEmpty()) {
                                         sendWelcomeOrStatus(player, server, username, KarmaState.BASE, isLogin, false, 0);
                                         result.complete(KarmaState.BASE);
                                         return;
                                     }
 
-                                    List<JsonObject> docs = new ArrayList<>(docsList);
+                                    // Ordena por data decrescente (mais recente primeiro)
                                     docs.sort((d1, d2) -> {
                                         JsonObject f1 = d1.has("fields") ? d1.getAsJsonObject("fields") : null;
                                         JsonObject f2 = d2.has("fields") ? d2.getAsJsonObject("fields") : null;
@@ -86,6 +101,7 @@ public final class KarmaCalculator {
                                         processedDoc = latestDoc;
                                     }
 
+                                    // Se não houver dia anterior válido registado DEPOIS da data de registo, mantém BASE
                                     if (processedDoc == null) {
                                         sendWelcomeOrStatus(player, server, username, storedKarma, isLogin, false, 0);
                                         result.complete(storedKarma);
@@ -151,7 +167,7 @@ public final class KarmaCalculator {
             if (isLogin) {
                 com.nudgecraft.manager.KarmaEffectManager.setServerLoginTime(System.currentTimeMillis());
                 if (!hasYesterdayData) {
-                    // Mensagem de boas-vindas para novos jogadores / sem registo de ontem
+                    // Mensagem de boas-vindas para novos jogadores / primeiro dia
                     player.sendSystemMessage(Component.literal("Bem-vindo/a ")
                             .withStyle(ChatFormatting.AQUA)
                             .append(Component.literal(username).withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD))
@@ -177,7 +193,7 @@ public final class KarmaCalculator {
             } else {
                 // Resposta ao comando /karma
                 if (!hasYesterdayData) {
-                    player.sendSystemMessage(Component.literal("Karma atual: " + karma + " (Ainda sem registos anteriores de passos para avaliar).")
+                    player.sendSystemMessage(Component.literal("Karma atual: " + karma + " (Primeiro dia de registo no estudo / ponto de partida BASE).")
                             .withStyle(ChatFormatting.YELLOW));
                 } else {
                     ChatFormatting cor = switch (karma) {
@@ -250,50 +266,25 @@ public final class KarmaCalculator {
         }
     }
 
-    private static KarmaState calculateFromGoal(KarmaState currentKarma, boolean goalAchieved) {
-        if (currentKarma == KarmaState.BASE) {
-            return goalAchieved ? KarmaState.POSITIVE : KarmaState.NEGATIVE;
+    private static KarmaState calculateFromGoal(KarmaState current, boolean goalAchieved) {
+        if (goalAchieved) {
+            return switch (current) {
+                case VNEGATIVE -> KarmaState.NEGATIVE;
+                case NEGATIVE -> KarmaState.SNEGATIVE;
+                case SNEGATIVE -> KarmaState.BASE;
+                case BASE -> KarmaState.SPOSITIVE;
+                case SPOSITIVE -> KarmaState.POSITIVE;
+                case POSITIVE, VPOSITIVE -> KarmaState.VPOSITIVE;
+            };
+        } else {
+            return switch (current) {
+                case VPOSITIVE -> KarmaState.POSITIVE;
+                case POSITIVE -> KarmaState.SPOSITIVE;
+                case SPOSITIVE -> KarmaState.BASE;
+                case BASE -> KarmaState.SNEGATIVE;
+                case SNEGATIVE -> KarmaState.NEGATIVE;
+                case NEGATIVE, VNEGATIVE -> KarmaState.VNEGATIVE;
+            };
         }
-
-        int currentLevel = levelOf(currentKarma);
-        int nextLevel = goalAchieved ? currentLevel + 1 : currentLevel - 1;
-
-        return karmaFromLevel(nextLevel);
-    }
-
-    private static int levelOf(KarmaState karmaState) {
-        return switch (karmaState) {
-            case VNEGATIVE -> -3;
-            case NEGATIVE -> -2;
-            case SNEGATIVE -> -1;
-            case BASE -> 0;
-            case SPOSITIVE -> 1;
-            case POSITIVE -> 2;
-            case VPOSITIVE -> 3;
-        };
-    }
-
-    private static KarmaState karmaFromLevel(int level) {
-        if (level <= -3) {
-            return KarmaState.VNEGATIVE;
-        }
-
-        if (level == -2) {
-            return KarmaState.NEGATIVE;
-        }
-
-        if (level <= 0) {
-            return KarmaState.SNEGATIVE;
-        }
-
-        if (level == 1) {
-            return KarmaState.SPOSITIVE;
-        }
-
-        if (level == 2) {
-            return KarmaState.POSITIVE;
-        }
-
-        return KarmaState.VPOSITIVE;
     }
 }

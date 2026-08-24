@@ -4,9 +4,12 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.AzaleaBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.BonemealableBlock;
 import net.minecraft.world.level.block.CropBlock;
+import net.minecraft.world.level.block.MangrovePropaguleBlock;
+import net.minecraft.world.level.block.SaplingBlock;
 import net.minecraft.world.level.block.StemBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import com.nudgecraft.Karma.KarmaState;
@@ -38,8 +41,43 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
     };
 
     /**
+     * Verifica se o bloco corresponde exclusivamente a uma plantação agrícola do jogador
+     * ou a rebentos/mudas de árvores (Saplings).
+     * Exclui relva (grass/tall grass), fetos e vegetação selvagem.
+     */
+    public static boolean isPlayerCrop(BlockState state, ServerLevel level, BlockPos pos) {
+        if (state == null || state.isAir()) {
+            return false;
+        }
+
+        // 1. Qualquer cultura em terra arada (Farmland)
+        if (level.getBlockState(pos.below()).is(Blocks.FARMLAND)) {
+            return true;
+        }
+
+        // 2. Culturas agrícolas padrão do Minecraft (Trigo, Cenouras, Batatas, Beterrabas, Melancia/Abóbora)
+        if (state.getBlock() instanceof CropBlock || state.getBlock() instanceof StemBlock) {
+            return true;
+        }
+
+        // 3. Rebentos / Mudas de árvores (Saplings de Carvalho, Bétula, Pinheiro, Selva, Acácia, Manguezal, Azáleas, etc.)
+        if (state.getBlock() instanceof SaplingBlock
+                || state.getBlock() instanceof MangrovePropaguleBlock
+                || state.getBlock() instanceof AzaleaBlock) {
+            return true;
+        }
+
+        // 4. Outras culturas agrícolas intencionais
+        return state.is(Blocks.SWEET_BERRY_BUSH)
+                || state.is(Blocks.COCOA)
+                || state.is(Blocks.TORCHFLOWER_CROP)
+                || state.is(Blocks.PITCHER_CROP)
+                || state.is(Blocks.NETHER_WART);
+    }
+
+    /**
      * Aplica partículas de login brilhantes,
-     * florestação espontânea de solo e aceleração de colheitas próximas (efeito Bonemeal).
+     * florestação espontânea de solo e aceleração de colheitas/árvores do jogador (efeito Bonemeal).
      *
      * @param player O jogador sob efeito da estratégia.
      * @param level  O nível de servidor onde o jogador se encontra.
@@ -55,7 +93,7 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
             }
         }
 
-        // Crescimento de plantas/culturas (bonemeal) a cada tick com chance
+        // Crescimento exclusivo de plantações e árvores do jogador a cada tick com chance
         if (level.getRandom().nextFloat() < 0.15f) {
             int rangeX = level.getRandom().nextInt(11) - 5;
             int rangeY = level.getRandom().nextInt(5) - 2;
@@ -64,20 +102,15 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
             BlockPos pos = player.blockPosition().offset(rangeX, rangeY, rangeZ);
             BlockState state = level.getBlockState(pos);
 
-            if (state.getBlock() instanceof BonemealableBlock bonemealable && !state.is(Blocks.GRASS_BLOCK)) {
+            // Garante que é um bloco fértil E que é exclusivamente plantação ou muda de árvore
+            if (state.getBlock() instanceof BonemealableBlock bonemealable && isPlayerCrop(state, level, pos)) {
                 if (bonemealable.isValidBonemealTarget(level, pos, state) && bonemealable.isBonemealSuccess(level, level.getRandom(), pos, state)) {
                     bonemealable.performBonemeal(level, level.getRandom(), pos, state);
                     level.sendParticles(ParticleTypes.GLOW,
                             pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
                             3, 0.2, 0.2, 0.2, 0.0);
 
-                    // Apenas envia a mensagem se for uma plantação agrícola do jogador (em terra arada com enxada)
-                    boolean isPlayerCrop = level.getBlockState(pos.below()).is(Blocks.FARMLAND)
-                            || state.getBlock() instanceof CropBlock
-                            || state.getBlock() instanceof StemBlock;
-                    if (isPlayerCrop) {
-                        KarmaEffectManager.triggerCropMessage(player, true);
-                    }
+                    KarmaEffectManager.triggerCropMessage(player, true);
                 }
             }
         }

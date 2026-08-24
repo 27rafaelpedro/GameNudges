@@ -5,8 +5,6 @@ import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.CropBlock;
-import net.minecraft.world.level.block.StemBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.block.state.properties.IntegerProperty;
@@ -21,9 +19,13 @@ import com.nudgecraft.manager.TemporaryBlockManager;
  */
 public class NegativeKarmaStrategy implements KarmaStrategy {
 
+    /** Delay mínimo de 15 minutos (18.000 ticks) entre episódios de chuva forçada. */
+    private static final long RAIN_COOLDOWN_TICKS = 18000L;
+    private static long nextAllowedRainGameTime = 0L;
+
     /**
      * Aplica a taxa metabólica aumentada de fome (sem poção nem ícones),
-     * partículas de login de fumo, controlo do clima hostil e murchamento/seca de plantas
+     * partículas de login de fumo, controlo do clima hostil com cooldown e murchamento/seca de plantas
      * ao redor do jogador afetado.
      *
      * @param player O jogador sob efeito da estratégia.
@@ -41,9 +43,10 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
         }
 
         KarmaState current = KarmaEffectManager.getCurrentKarma();
+        long gameTime = level.getGameTime();
 
         // Aumento metabólico passivo de exaustão a cada segundo (20 ticks) sem poção nem alteração visual da barra
-        if (level.getGameTime() % 20 == 0) {
+        if (gameTime % 20 == 0) {
             if (current == KarmaState.VNEGATIVE) {
                 player.causeFoodExhaustion(0.040f); // +20% taxa acelerada
             } else if (current == KarmaState.NEGATIVE) {
@@ -53,32 +56,27 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
             }
         }
 
-
-
-        // Controlo meteorológico periódico do servidor a cada 30 segundos (600 ticks)
-        if (level.getGameTime() % 600 == 0 && level.getServer() != null) {
-            boolean isRaining = level.isRaining();
-            boolean isThundering = level.isThundering();
-
-            if (current == KarmaState.VNEGATIVE) {
-                // VN -> 40% de probabilidade de Chuva e 20% de Trovoada
-                if (!isRaining) {
-                    if (level.getRandom().nextFloat() < 0.40f) {
-                        boolean thunder = level.getRandom().nextFloat() < 0.20f;
-                        level.getServer().setWeatherParameters(0, 12000, true, thunder);
+        // Controlo meteorológico com cooldown rígido de 15 minutos (testa apenas a cada 60 segundos / 1200 ticks)
+        if (gameTime % 1200 == 0 && level.getServer() != null) {
+            if (gameTime >= nextAllowedRainGameTime && !level.isRaining()) {
+                if (current == KarmaState.VNEGATIVE) {
+                    // VNEGATIVE: 25% de probabilidade de chuva curta (2.5 minutos = 3000 ticks) com 10% de trovoada
+                    if (level.getRandom().nextFloat() < 0.25f) {
+                        boolean thunder = level.getRandom().nextFloat() < 0.10f;
+                        level.getServer().setWeatherParameters(0, 3000, true, thunder);
+                        nextAllowedRainGameTime = gameTime + RAIN_COOLDOWN_TICKS;
                     }
-                } else if (!isThundering && level.getRandom().nextFloat() < 0.20f) {
-                    level.getServer().setWeatherParameters(0, 12000, true, true);
-                }
-            } else if (current == KarmaState.NEGATIVE) {
-                // N -> 30% de probabilidade de Chuva (0% Trovoada)
-                if (!isRaining) {
-                    if (level.getRandom().nextFloat() < 0.30f) {
-                        level.getServer().setWeatherParameters(0, 12000, true, false);
+                } else if (current == KarmaState.NEGATIVE) {
+                    // NEGATIVE: 15% de probabilidade de chuva curta (2 minutos = 2400 ticks) sem trovoada
+                    if (level.getRandom().nextFloat() < 0.15f) {
+                        level.getServer().setWeatherParameters(0, 2400, true, false);
+                        nextAllowedRainGameTime = gameTime + RAIN_COOLDOWN_TICKS;
                     }
                 }
+            } else if (level.isRaining() && nextAllowedRainGameTime < gameTime) {
+                // Se já estiver a chover por evento natural, garante que o cooldown de 15 min só conta a partir do fim
+                nextAllowedRainGameTime = gameTime + RAIN_COOLDOWN_TICKS;
             }
-            // SN -> 0% de chuva/trovoada forçada (mantém apenas o céu escuro e clima de trovoada visual)
         }
 
         int radius = (current == KarmaState.VNEGATIVE) ? 2 : 1;
@@ -142,7 +140,8 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
                             pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
                             3, 0.2, 0.2, 0.2, 0.0);
                 }
-            } else {
+            } else if (PositiveKarmaStrategy.isPlayerCrop(state, level, pos)) {
+                // Apenas regride se for exclusivamente uma plantação agrícola do jogador
                 Property<?> ageProp = state.getProperties().stream()
                         .filter(p -> p.getName().equals("age") && p instanceof IntegerProperty)
                         .findFirst()
@@ -159,13 +158,7 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
                                     pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
                                     3, 0.2, 0.2, 0.2, 0.0);
 
-                            // Apenas envia a mensagem se for uma plantação agrícola do jogador (em terra arada com enxada)
-                            boolean isPlayerCrop = level.getBlockState(pos.below()).is(Blocks.FARMLAND)
-                                    || state.getBlock() instanceof CropBlock
-                                    || state.getBlock() instanceof StemBlock;
-                            if (isPlayerCrop) {
-                                KarmaEffectManager.triggerCropMessage(player, false);
-                            }
+                            KarmaEffectManager.triggerCropMessage(player, false);
                         }
                     }
                 }

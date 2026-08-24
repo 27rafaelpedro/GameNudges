@@ -4,6 +4,7 @@ import com.nudgecraft.Karma.KarmaCalculator;
 import com.nudgecraft.command.ModCommands;
 import com.nudgecraft.firebase.FirebaseManager;
 import com.nudgecraft.Karma.KarmaPayload;
+import com.nudgecraft.manager.FatigueManager;
 import com.nudgecraft.manager.KarmaEffectManager;
 import com.nudgecraft.manager.TemporaryBlockManager;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -31,10 +32,14 @@ public class Nudgecraft implements ModInitializer {
 
         ServerLifecycleEvents.SERVER_STARTING.register(server -> FirebaseManager.init());
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> FirebaseManager.shutdown());
-        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
-                KarmaCalculator.processPlayerLogin(handler.player));
-        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
-                KarmaEffectManager.onPlayerDisconnect(handler.player));
+        ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
+            FatigueManager.onPlayerJoin(handler.player);
+            KarmaCalculator.processPlayerLogin(handler.player);
+        });
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
+            KarmaEffectManager.onPlayerDisconnect(handler.player);
+            FatigueManager.onPlayerDisconnect(handler.player);
+        });
 
         ServerTickEvents.END_LEVEL_TICK.register(level -> {
             for (ServerPlayer player : level.players()) {

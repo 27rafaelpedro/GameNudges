@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.time.LocalDate
 
 class AuthViewModel : ViewModel() {
     private val auth: FirebaseAuth = FirebaseAuth.getInstance()
@@ -30,7 +31,7 @@ class AuthViewModel : ViewModel() {
     private val _minecraftUsername = MutableStateFlow<String?>(null)
     val minecraftUsername: StateFlow<String?> = _minecraftUsername
 
-    private val _isLoadingUsername = MutableStateFlow(true) // Começa como true para evitar flash do popup
+    private val _isLoadingUsername = MutableStateFlow(true)
     val isLoadingUsername: StateFlow<Boolean> = _isLoadingUsername
 
     fun initUsername(context: Context) {
@@ -45,20 +46,39 @@ class AuthViewModel : ViewModel() {
         if (localUsername != null) {
             _minecraftUsername.value = localUsername
             _isLoadingUsername.value = false
+            
+            // Garante que a conta de email atual fica associada ao username existente no telemóvel
+            viewModelScope.launch {
+                try {
+                    val today = LocalDate.now().toString()
+                    val installDate = prefs.getString("install_date", today) ?: today
+                    db.collection("users").document(email)
+                        .set(mapOf("minecraft_username" to localUsername, "install_date" to installDate), SetOptions.merge())
+                } catch (_: Exception) {}
+            }
             return
         }
 
-        // Se não houver localmente, verificar na Cloud
+        // Se não houver no dispositivo, verifica se este email já tinha na Cloud
         viewModelScope.launch {
             try {
                 val doc = db.collection("users").document(email).get().await()
                 val cloudUsername = doc.getString("minecraft_username")
+                val cloudInstallDate = doc.getString("install_date")
+                
+                if (cloudInstallDate != null && !prefs.contains("install_date")) {
+                    prefs.edit().putString("install_date", cloudInstallDate).apply()
+                }
+
                 if (cloudUsername != null) {
                     prefs.edit().putString("minecraft_username", cloudUsername).apply()
                     _minecraftUsername.value = cloudUsername
+                } else {
+                    _minecraftUsername.value = null
                 }
             } catch (e: Exception) {
                 Log.e("Auth", "Erro ao sincronizar username da cloud: ${e.message}")
+                _minecraftUsername.value = null
             } finally {
                 _isLoadingUsername.value = false
             }
@@ -88,12 +108,19 @@ class AuthViewModel : ViewModel() {
                     }
                 }
 
-                // 2. Guardar na Cloud (users/email)
+                val today = LocalDate.now().toString()
+                val installDate = prefs.getString("install_date", today) ?: today
+
+                // 2. Guardar na Cloud (users/email) com a data de instalação do estudo
+                val userData = mapOf(
+                    "minecraft_username" to username,
+                    "install_date" to installDate
+                )
                 db.collection("users").document(email)
-                    .set(mapOf("minecraft_username" to username), SetOptions.merge())
+                    .set(userData, SetOptions.merge())
                     .await()
                 
-                // 3. Guardar Localmente
+                // 3. Guardar no dispositivo para conveniência
                 prefs.edit().putString("minecraft_username", username).apply()
                 
                 _minecraftUsername.value = username
@@ -135,6 +162,7 @@ class AuthViewModel : ViewModel() {
                         .addOnSuccessListener {
                             val user = auth.currentUser
                             _user.value = user
+                            _isLoadingUsername.value = true
                             onSuccess()
                         }
                         .addOnFailureListener {
@@ -155,6 +183,7 @@ class AuthViewModel : ViewModel() {
         auth.signInWithEmailAndPassword(email, password)
             .addOnSuccessListener {
                 _user.value = auth.currentUser
+                _isLoadingUsername.value = true
                 onSuccess()
             }
             .addOnFailureListener {
@@ -166,6 +195,7 @@ class AuthViewModel : ViewModel() {
         auth.createUserWithEmailAndPassword(email, password)
             .addOnSuccessListener {
                 _user.value = auth.currentUser
+                _isLoadingUsername.value = true
                 onSuccess()
             }
             .addOnFailureListener {
@@ -176,6 +206,7 @@ class AuthViewModel : ViewModel() {
     fun logout(context: Context) {
         auth.signOut()
         _minecraftUsername.value = null
+        _isLoadingUsername.value = true
         val credentialManager = CredentialManager.create(context)
         viewModelScope.launch {
             credentialManager.clearCredentialState(ClearCredentialStateRequest())
