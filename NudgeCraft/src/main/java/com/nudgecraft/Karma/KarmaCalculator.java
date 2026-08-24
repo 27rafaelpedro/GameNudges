@@ -18,6 +18,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
+/**
+ * Calculador de Karma responsável por avaliar a atividade física do jogador
+ * e sincronizar o estado ambiental correspondente no ecossistema NudgeCraft.
+ */
 public final class KarmaCalculator {
 
     private static final Logger LOGGER = LoggerFactory.getLogger("nudgecraft");
@@ -26,7 +30,9 @@ public final class KarmaCalculator {
     }
 
     /**
-     * Ponto de entrada chamado no login do jogador para calcular e sincronizar o Karma.
+     * Processa a entrada do jogador no servidor, iniciando o cálculo de Karma de login.
+     *
+     * @param player O jogador que entrou no servidor.
      */
     public static void processPlayerLogin(ServerPlayer player) {
         calculateKarma(player, true);
@@ -36,6 +42,10 @@ public final class KarmaCalculator {
      * Calcula a evolução cronológica do Karma do jogador para todos os dias concluídos
      * desde o último processamento até ontem, garantindo que dias em que o jogador não jogou
      * continuam a fazer evoluir o Karma com base nos passos reais dados.
+     *
+     * @param player  O jogador a avaliar.
+     * @param isLogin Indica se a chamada teve origem no evento de login.
+     * @return CompletableFuture com o estado de Karma resultante.
      */
     public static CompletableFuture<KarmaState> calculateKarma(ServerPlayer player, boolean isLogin) {
         String username = PlayerProfileManager.getUsername(player);
@@ -60,7 +70,6 @@ public final class KarmaCalculator {
                                     LocalDate today = LocalDate.now();
                                     LocalDate yesterday = today.minusDays(1);
 
-                                    // 1. Determinar a data de registo inicial do jogador
                                     LocalDate registrationDate;
                                     try {
                                         registrationDate = (registrationDateStr != null) ? LocalDate.parse(registrationDateStr) : today;
@@ -68,20 +77,17 @@ public final class KarmaCalculator {
                                         registrationDate = today;
                                     }
 
-                                    // 2. Determinar o último dia concluído já processado
                                     LocalDate lastProcessedDate;
                                     try {
                                         if (lastProcessedVisitDateStr != null) {
                                             lastProcessedDate = LocalDate.parse(lastProcessedVisitDateStr);
                                         } else {
-                                            // Se nunca foi processado, o ponto de partida é o dia anterior ao registo
                                             lastProcessedDate = registrationDate.minusDays(1);
                                         }
                                     } catch (DateTimeParseException e) {
                                         lastProcessedDate = registrationDate.minusDays(1);
                                     }
 
-                                    // 3. Mapear os registos de passos do utilizador por data (YYYY-MM-DD -> passos)
                                     Map<String, Long> stepsByDate = new HashMap<>();
                                     for (JsonObject d : docsList) {
                                         JsonObject f = d.has("fields") ? d.getAsJsonObject("fields") : null;
@@ -92,7 +98,6 @@ public final class KarmaCalculator {
                                         }
                                     }
 
-                                    // 4. Se o jogador já está no primeiro dia e não há dias anteriores por processar
                                     LocalDate startDate = lastProcessedDate.plusDays(1);
                                     if (startDate.isBefore(registrationDate)) {
                                         startDate = registrationDate;
@@ -104,7 +109,6 @@ public final class KarmaCalculator {
                                     long lastDaySteps = 0;
                                     String lastProcessedString = lastProcessedDate.toString();
 
-                                    // 5. Processar sequencialmente cada dia pendente desde startDate até ontem
                                     LocalDate cursor = startDate;
                                     while (!cursor.isAfter(yesterday)) {
                                         String cursorDateStr = cursor.toString();
@@ -121,12 +125,10 @@ public final class KarmaCalculator {
                                         cursor = cursor.plusDays(1);
                                     }
 
-                                    // 6. Atualizar Firestore se foram processados novos dias
                                     if (daysProcessedCount > 0) {
                                         updatePlayerKarma(username, currentKarma, karmaBeforeLast, lastProcessedString, goal);
                                     }
 
-                                    // 7. Enviar feedback e mensagens de boas-vindas
                                     sendWelcomeOrStatus(player, server, username, currentKarma, isLogin, daysProcessedCount, lastDaySteps, yesterday.toString().equals(lastProcessedString));
                                     result.complete(currentKarma);
                                 }))
@@ -143,6 +145,9 @@ public final class KarmaCalculator {
         return result;
     }
 
+    /**
+     * Envia as mensagens de receção e atualiza o estado de rede e estratégia do jogador no servidor.
+     */
     private static void sendWelcomeOrStatus(
             ServerPlayer player,
             MinecraftServer server,
@@ -154,17 +159,13 @@ public final class KarmaCalculator {
             boolean hasYesterdayData
     ) {
         FirebaseManager.onServerThread(server, () -> {
-            // Sincroniza o Karma atual com o cliente via rede para atualização imediata do HUD
             ServerPlayNetworking.send(player, new KarmaPayload(karma.name()));
-
-            // Atualiza a estratégia do jogador no servidor
             com.nudgecraft.manager.KarmaEffectManager.updateStrategy(karma);
 
             if (isLogin) {
                 com.nudgecraft.manager.KarmaEffectManager.setServerLoginTime(System.currentTimeMillis());
 
                 if (daysProcessedCount == 0 && !hasYesterdayData) {
-                    // Primeiro dia de registo no estudo
                     player.sendSystemMessage(Component.literal("Bem-vindo/a ")
                             .withStyle(ChatFormatting.AQUA)
                             .append(Component.literal(username).withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD))
@@ -173,12 +174,10 @@ public final class KarmaCalculator {
                 }
 
                 if (daysProcessedCount > 1) {
-                    // Notificação de ausência de múltiplos dias
                     player.sendSystemMessage(Component.literal("Estiveste fora " + daysProcessedCount + " dias! O teu Karma foi atualizado com base nos teus passos diários.")
                             .withStyle(ChatFormatting.GOLD));
                 }
 
-                // Mensagem baseada no estado de Karma resultante
                 switch (karma) {
                     case VNEGATIVE, NEGATIVE, SNEGATIVE -> {
                         player.sendSystemMessage(Component.literal("O mundo à tua volta está a perder a sua cor... Fizeste " + lastDaySteps + " passos no último dia avaliado.")
@@ -189,12 +188,9 @@ public final class KarmaCalculator {
                                 .withStyle(ChatFormatting.GREEN));
                     }
                     case BASE -> {
-                        player.sendSystemMessage(Component.literal("Mantém o ritmo! Fizeste " + lastDaySteps + " passos no último dia avaliado.")
-                                .withStyle(ChatFormatting.YELLOW));
                     }
                 }
             } else {
-                // Resposta ao comando /karma
                 ChatFormatting cor = switch (karma) {
                     case VNEGATIVE, NEGATIVE, SNEGATIVE -> ChatFormatting.RED;
                     case SPOSITIVE, POSITIVE, VPOSITIVE -> ChatFormatting.GREEN;
@@ -206,6 +202,9 @@ public final class KarmaCalculator {
         });
     }
 
+    /**
+     * Atualiza o estado de Karma e as datas de controlo do jogador no Cloud Firestore.
+     */
     private static void updatePlayerKarma(
             String username,
             KarmaState karmaState,
@@ -223,6 +222,9 @@ public final class KarmaCalculator {
         FirebaseManager.patchDocument("players", username, fields, mask);
     }
 
+    /**
+     * Lê o estado de Karma guardado no perfil do jogador.
+     */
     private static KarmaState readStoredKarma(JsonObject profileFields) {
         String storedKarma = FirebaseManager.getString(profileFields, "karma", null);
 
@@ -238,6 +240,9 @@ public final class KarmaCalculator {
         }
     }
 
+    /**
+     * Lê o estado de Karma anterior à última visita processada.
+     */
     private static KarmaState readKarmaBeforeLastProcessedVisit(JsonObject profileFields) {
         String storedKarma = FirebaseManager.getString(profileFields, "karmaBeforeLastProcessedVisit", null);
 
@@ -253,13 +258,20 @@ public final class KarmaCalculator {
         }
     }
 
+    /**
+     * Calcula a transição de estado de Karma com base no cumprimento da meta diária.
+     * O estado BASE é exclusivo do ponto de partida inicial do estudo.
+     *
+     * @param current      O estado de Karma atual.
+     * @param goalAchieved Verdadeiro se a meta de passos foi atingida, falso caso contrário.
+     * @return O próximo estado de Karma resultante.
+     */
     private static KarmaState calculateFromGoal(KarmaState current, boolean goalAchieved) {
         if (goalAchieved) {
             return switch (current) {
                 case VNEGATIVE -> KarmaState.NEGATIVE;
                 case NEGATIVE -> KarmaState.SNEGATIVE;
-                case SNEGATIVE -> KarmaState.BASE;
-                case BASE -> KarmaState.SPOSITIVE;
+                case SNEGATIVE, BASE -> KarmaState.SPOSITIVE;
                 case SPOSITIVE -> KarmaState.POSITIVE;
                 case POSITIVE, VPOSITIVE -> KarmaState.VPOSITIVE;
             };
@@ -267,8 +279,7 @@ public final class KarmaCalculator {
             return switch (current) {
                 case VPOSITIVE -> KarmaState.POSITIVE;
                 case POSITIVE -> KarmaState.SPOSITIVE;
-                case SPOSITIVE -> KarmaState.BASE;
-                case BASE -> KarmaState.SNEGATIVE;
+                case SPOSITIVE, BASE -> KarmaState.SNEGATIVE;
                 case SNEGATIVE -> KarmaState.NEGATIVE;
                 case NEGATIVE, VNEGATIVE -> KarmaState.VNEGATIVE;
             };
