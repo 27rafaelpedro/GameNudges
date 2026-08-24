@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * - POSITIVE:  Partículas nativas de Firefly + iluminação suave estável (Nível 6).
  * - VPOSITIVE: Partículas nativas de Firefly + iluminação forte estável (Nível 12).
  *
- * Envia mensagens na Action Bar ao afastar-se de fontes de luz (com cooldown para evitar repetições):
+ * Envia mensagens na Action Bar ao afastar-se de fontes de luz:
  * - VPOSITIVE: "A natureza ilumina o teu caminho!"
  * - VNEGATIVE: "A tua visão falha.."
  */
@@ -31,7 +31,6 @@ public final class FireflyLightingManager {
     private static final Map<UUID, Boolean> WAS_NEAR_LIGHT = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> LIGHT_MSG_COOLDOWN = new ConcurrentHashMap<>();
 
-    /** Cooldown de 60 segundos (1200 ticks) entre mensagens de iluminação para evitar spam */
     private static final int MSG_COOLDOWN_TICKS = 1200;
 
     private FireflyLightingManager() {
@@ -44,7 +43,6 @@ public final class FireflyLightingManager {
         UUID uuid = player.getUUID();
         KarmaState current = KarmaEffectManager.getCurrentKarma();
 
-        // Atualiza cooldown de mensagens
         int cooldown = LIGHT_MSG_COOLDOWN.getOrDefault(uuid, 0);
         if (cooldown > 0) {
             LIGHT_MSG_COOLDOWN.put(uuid, cooldown - 1);
@@ -53,11 +51,9 @@ public final class FireflyLightingManager {
         boolean isPositiveKarma = (current == KarmaState.SPOSITIVE || current == KarmaState.POSITIVE || current == KarmaState.VPOSITIVE);
         boolean isNight = level.isDarkOutside();
 
-        // Verifica se o jogador está perto de fontes de luz artificiais (tochas, lanternas, glowstone, lava, etc.)
         boolean isNearTorch = isNearArtificialLight(level, player.blockPosition(), 5);
         boolean wasNearTorch = WAS_NEAR_LIGHT.getOrDefault(uuid, true);
 
-        // Deteta transição: o jogador estava perto da luz e agora afastou-se para a escuridão
         if (wasNearTorch && !isNearTorch) {
             handleMovingAwayFromLight(player, level, uuid, current, isNight);
         }
@@ -66,21 +62,17 @@ public final class FireflyLightingManager {
         boolean shouldBeActive = isPositiveKarma && isNight && !isNearTorch;
 
         if (shouldBeActive) {
-            // 1. Emitir enxame de pirilampos (ParticleTypes.FIREFLY) ao redor do jogador
             spawnFireflies(player, level, current);
 
-            // 2. Determinar o nível de iluminação dos blocos
             int lightLevel = 0;
             if (current == KarmaState.POSITIVE) {
-                lightLevel = 6;  // Pouca iluminação suave
+                lightLevel = 6;
             } else if (current == KarmaState.VPOSITIVE) {
-                lightLevel = 12; // Iluminação mais forte e clara
+                lightLevel = 12;
             }
 
-            // 3. Atualizar a posição do bloco de luz dinâmica de forma estável
             updatePlayerLight(player, level, uuid, lightLevel);
         } else {
-            // Se for de dia, houver tochas por perto ou não for karma positivo, desliga a luz
             clearPlayerLight(level, uuid);
         }
     }
@@ -119,7 +111,7 @@ public final class FireflyLightingManager {
     }
 
     /**
-     * Emite as partículas autênticas de Firefly (Firefly Bush) orbitando o jogador
+     * Emite as partículas autênticas de Firefly orbitando o jogador
      * e herdando a sua velocidade de movimento.
      */
     private static void spawnFireflies(ServerPlayer player, ServerLevel level, KarmaState karma) {

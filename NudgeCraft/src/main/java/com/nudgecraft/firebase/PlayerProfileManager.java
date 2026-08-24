@@ -10,6 +10,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
@@ -27,19 +28,41 @@ public final class PlayerProfileManager {
 
     /**
      * Obtém ou inicializa o perfil do jogador no Firestore (coleção 'players').
-     * Garante que novos jogadores começam sempre no Karma BASE, ignorando passos anteriores ao registo.
+     * Garante que o registo tem todos os campos de controlo (registrationDate, lastProcessedVisitDate, etc.),
+     * atualizando automaticamente perfis antigos que não os possuam.
      */
     public static CompletableFuture<JsonObject> getOrCreateProfile(String username, String uuid) {
         return FirebaseManager.getDocument("players", username)
                 .thenCompose(doc -> {
-                    if (doc != null && doc.has("fields")) {
-                        return CompletableFuture.completedFuture(doc.getAsJsonObject("fields"));
-                    }
-
                     String today = LocalDate.now().toString();
                     String yesterday = LocalDate.now().minusDays(1).toString();
 
-                    // Criar perfil inicial de novo participante sempre em Karma BASE
+                    if (doc != null && doc.has("fields")) {
+                        JsonObject existingFields = doc.getAsJsonObject("fields");
+                        JsonObject missingFields = new JsonObject();
+                        List<String> updateMask = new ArrayList<>();
+
+                        if (!existingFields.has("registrationDate")) {
+                            missingFields.add("registrationDate", FirebaseManager.stringField(today));
+                            existingFields.add("registrationDate", FirebaseManager.stringField(today));
+                            updateMask.add("registrationDate");
+                        }
+
+                        if (!existingFields.has("lastProcessedVisitDate")) {
+                            missingFields.add("lastProcessedVisitDate", FirebaseManager.stringField(yesterday));
+                            existingFields.add("lastProcessedVisitDate", FirebaseManager.stringField(yesterday));
+                            updateMask.add("lastProcessedVisitDate");
+                        }
+
+                        if (!missingFields.keySet().isEmpty()) {
+                            return FirebaseManager.patchDocument("players", username, missingFields, updateMask)
+                                    .thenApply(patchedDoc -> existingFields);
+                        }
+
+                        return CompletableFuture.completedFuture(existingFields);
+                    }
+
+                    // Criar perfil inicial para novo jogador
                     JsonObject initialFields = new JsonObject();
                     initialFields.add("minecraft_username", FirebaseManager.stringField(username));
                     initialFields.add("uuid", FirebaseManager.stringField(uuid));
