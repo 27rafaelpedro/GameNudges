@@ -129,7 +129,7 @@ public final class KarmaCalculator {
                                         updatePlayerKarma(username, currentKarma, karmaBeforeLast, lastProcessedString, goal);
                                     }
 
-                                    sendWelcomeOrStatus(player, server, username, currentKarma, isLogin, daysProcessedCount, lastDaySteps, yesterday.toString().equals(lastProcessedString));
+                                    sendWelcomeOrStatus(player, server, username, currentKarma, isLogin, daysProcessedCount, lastDaySteps);
                                     result.complete(currentKarma);
                                 }))
                 .exceptionally(ex -> {
@@ -137,7 +137,7 @@ public final class KarmaCalculator {
                     if (!isLogin) {
                         PlayerProfileManager.erro(player, server, "Erro ao comunicar com o Firestore.");
                     }
-                    sendWelcomeOrStatus(player, server, username, KarmaState.BASE, isLogin, 0, 0, false);
+                    sendWelcomeOrStatus(player, server, username, KarmaState.BASE, isLogin, 0, 0);
                     result.complete(KarmaState.BASE);
                     return null;
                 });
@@ -155,8 +155,7 @@ public final class KarmaCalculator {
             KarmaState karma,
             boolean isLogin,
             int daysProcessedCount,
-            long lastDaySteps,
-            boolean hasYesterdayData
+            long lastDaySteps
     ) {
         FirebaseManager.onServerThread(server, () -> {
             ServerPlayNetworking.send(player, new KarmaPayload(karma.name()));
@@ -165,20 +164,18 @@ public final class KarmaCalculator {
             if (isLogin) {
                 com.nudgecraft.manager.KarmaEffectManager.setServerLoginTime(System.currentTimeMillis());
 
-                if (daysProcessedCount == 0 && !hasYesterdayData) {
-                    player.sendSystemMessage(Component.literal("Bem-vindo/a ")
-                            .withStyle(ChatFormatting.AQUA)
-                            .append(Component.literal(username).withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD))
-                            .append(Component.literal("! Este é o começo da tua aventura fitness no NudgeCraft!").withStyle(ChatFormatting.AQUA)));
-                    return;
-                }
-
                 if (daysProcessedCount > 1) {
                     player.sendSystemMessage(Component.literal("Estiveste fora " + daysProcessedCount + " dias! O teu Karma foi atualizado com base nos teus passos diários.")
                             .withStyle(ChatFormatting.GOLD));
                 }
 
                 switch (karma) {
+                    case BASE -> {
+                        player.sendSystemMessage(Component.literal("Bem-vindo/a ")
+                                .withStyle(ChatFormatting.AQUA)
+                                .append(Component.literal(username).withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD))
+                                .append(Component.literal("! Este é o começo da tua aventura fitness no NudgeCraft!").withStyle(ChatFormatting.AQUA)));
+                    }
                     case VNEGATIVE, NEGATIVE, SNEGATIVE -> {
                         player.sendSystemMessage(Component.literal("O mundo à tua volta está a perder a sua cor... Fizeste " + lastDaySteps + " passos no último dia avaliado.")
                                 .withStyle(ChatFormatting.RED));
@@ -186,8 +183,6 @@ public final class KarmaCalculator {
                     case SPOSITIVE, POSITIVE, VPOSITIVE -> {
                         player.sendSystemMessage(Component.literal("O mundo à tua volta parece mais radiante e cheio de vida! Fizeste " + lastDaySteps + " passos no último dia avaliado.")
                                 .withStyle(ChatFormatting.GREEN));
-                    }
-                    case BASE -> {
                     }
                 }
             } else {
@@ -259,8 +254,9 @@ public final class KarmaCalculator {
     }
 
     /**
-     * Calcula a transição de estado de Karma com base no cumprimento da meta diária.
-     * O estado BASE é exclusivo do ponto de partida inicial do estudo.
+     * Calcula a transição de estado de Karma:
+     * - No Dia 1 (BASE): ao cumprir a meta vai direto para POSITIVE; ao falhar vai para NEGATIVE.
+     * - A partir daí: evolui para VPOSITIVE / VNEGATIVE ou ajusta para SPOSITIVE / SNEGATIVE.
      *
      * @param current      O estado de Karma atual.
      * @param goalAchieved Verdadeiro se a meta de passos foi atingida, falso caso contrário.
@@ -271,7 +267,8 @@ public final class KarmaCalculator {
             return switch (current) {
                 case VNEGATIVE -> KarmaState.NEGATIVE;
                 case NEGATIVE -> KarmaState.SNEGATIVE;
-                case SNEGATIVE, BASE -> KarmaState.SPOSITIVE;
+                case SNEGATIVE -> KarmaState.SPOSITIVE;
+                case BASE -> KarmaState.POSITIVE;
                 case SPOSITIVE -> KarmaState.POSITIVE;
                 case POSITIVE, VPOSITIVE -> KarmaState.VPOSITIVE;
             };
@@ -279,7 +276,8 @@ public final class KarmaCalculator {
             return switch (current) {
                 case VPOSITIVE -> KarmaState.POSITIVE;
                 case POSITIVE -> KarmaState.SPOSITIVE;
-                case SPOSITIVE, BASE -> KarmaState.SNEGATIVE;
+                case SPOSITIVE -> KarmaState.SNEGATIVE;
+                case BASE -> KarmaState.NEGATIVE;
                 case SNEGATIVE -> KarmaState.NEGATIVE;
                 case NEGATIVE, VNEGATIVE -> KarmaState.VNEGATIVE;
             };
