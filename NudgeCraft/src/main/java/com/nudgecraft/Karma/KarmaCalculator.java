@@ -13,8 +13,9 @@ import org.slf4j.LoggerFactory;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public final class KarmaCalculator {
@@ -32,8 +33,9 @@ public final class KarmaCalculator {
     }
 
     /**
-     * Calcula o Karma do jogador com base nos passos de ontem registados a partir da data de registo/instalação.
-     * Ignora quaisquer registos históricos anteriores ao dia de entrada no estudo.
+     * Calcula a evolução cronológica do Karma do jogador para todos os dias concluídos
+     * desde o último processamento até ontem, garantindo que dias em que o jogador não jogou
+     * continuam a fazer evoluir o Karma com base nos passos reais dados.
      */
     public static CompletableFuture<KarmaState> calculateKarma(ServerPlayer player, boolean isLogin) {
         String username = PlayerProfileManager.getUsername(player);
@@ -52,87 +54,80 @@ public final class KarmaCalculator {
                                     }
 
                                     KarmaState storedKarma = readStoredKarma(profileFields);
-                                    String registrationDate = FirebaseManager.getString(profileFields, "registrationDate", null);
-                                    String lastProcessedVisitDate = FirebaseManager.getString(profileFields, "lastProcessedVisitDate", null);
-                                    Long lastProcessedGoal = FirebaseManager.getLong(profileFields, "lastProcessedGoal", null);
+                                    String registrationDateStr = FirebaseManager.getString(profileFields, "registrationDate", null);
+                                    String lastProcessedVisitDateStr = FirebaseManager.getString(profileFields, "lastProcessedVisitDate", null);
 
-                                    // Se for o primeiro acesso absoluto, inicializa a data de registo para hoje
-                                    if (registrationDate == null) {
-                                        registrationDate = LocalDate.now().toString();
+                                    LocalDate today = LocalDate.now();
+                                    LocalDate yesterday = today.minusDays(1);
+
+                                    // 1. Determinar a data de registo inicial do jogador
+                                    LocalDate registrationDate;
+                                    try {
+                                        registrationDate = (registrationDateStr != null) ? LocalDate.parse(registrationDateStr) : today;
+                                    } catch (DateTimeParseException e) {
+                                        registrationDate = today;
                                     }
 
-                                    final String finalRegDate = registrationDate;
+                                    // 2. Determinar o último dia concluído já processado
+                                    LocalDate lastProcessedDate;
+                                    try {
+                                        if (lastProcessedVisitDateStr != null) {
+                                            lastProcessedDate = LocalDate.parse(lastProcessedVisitDateStr);
+                                        } else {
+                                            // Se nunca foi processado, o ponto de partida é o dia anterior ao registo
+                                            lastProcessedDate = registrationDate.minusDays(1);
+                                        }
+                                    } catch (DateTimeParseException e) {
+                                        lastProcessedDate = registrationDate.minusDays(1);
+                                    }
 
-                                    // Filtra registos anteriores à data de instalação/registo do jogador
-                                    List<JsonObject> docs = new ArrayList<>();
+                                    // 3. Mapear os registos de passos do utilizador por data (YYYY-MM-DD -> passos)
+                                    Map<String, Long> stepsByDate = new HashMap<>();
                                     for (JsonObject d : docsList) {
                                         JsonObject f = d.has("fields") ? d.getAsJsonObject("fields") : null;
-                                        String dDate = FirebaseManager.getString(f, "date", "");
-                                        if (dDate.compareTo(finalRegDate) >= 0) {
-                                            docs.add(d);
+                                        String dDate = FirebaseManager.getString(f, "date", null);
+                                        Long dSteps = FirebaseManager.getLong(f, "steps", null);
+                                        if (dDate != null && dSteps != null) {
+                                            stepsByDate.put(dDate, dSteps);
                                         }
                                     }
 
-                                    if (docs.isEmpty()) {
-                                        sendWelcomeOrStatus(player, server, username, KarmaState.BASE, isLogin, false, 0);
-                                        result.complete(KarmaState.BASE);
-                                        return;
-                                    }
-
-                                    // Ordena por data decrescente (mais recente primeiro)
-                                    docs.sort((d1, d2) -> {
-                                        JsonObject f1 = d1.has("fields") ? d1.getAsJsonObject("fields") : null;
-                                        JsonObject f2 = d2.has("fields") ? d2.getAsJsonObject("fields") : null;
-                                        String date1 = FirebaseManager.getString(f1, "date", "");
-                                        String date2 = FirebaseManager.getString(f2, "date", "");
-                                        return date2.compareTo(date1);
-                                    });
-
-                                    JsonObject latestDoc = docs.get(0);
-                                    JsonObject latestFields = latestDoc.has("fields") ? latestDoc.getAsJsonObject("fields") : null;
-                                    String latestVisitDate = FirebaseManager.getString(latestFields, "date", null);
-
-                                    JsonObject processedDoc = null;
-                                    if (isToday(latestVisitDate)) {
-                                        if (docs.size() >= 2) {
-                                            processedDoc = docs.get(1);
-                                        }
-                                    } else {
-                                        processedDoc = latestDoc;
-                                    }
-
-                                    // Se não houver dia anterior válido registado DEPOIS da data de registo, mantém BASE
-                                    if (processedDoc == null) {
-                                        sendWelcomeOrStatus(player, server, username, storedKarma, isLogin, false, 0);
-                                        result.complete(storedKarma);
-                                        return;
-                                    }
-
-                                    JsonObject processedFields = processedDoc.has("fields") ? processedDoc.getAsJsonObject("fields") : null;
-                                    String visitDate = FirebaseManager.getString(processedFields, "date", null);
-                                    Long stepsOntem = FirebaseManager.getLong(processedFields, "steps", null);
-
-                                    if (visitDate == null || stepsOntem == null) {
-                                        sendWelcomeOrStatus(player, server, username, storedKarma, isLogin, false, 0);
-                                        result.complete(storedKarma);
-                                        return;
+                                    // 4. Se o jogador já está no primeiro dia e não há dias anteriores por processar
+                                    LocalDate startDate = lastProcessedDate.plusDays(1);
+                                    if (startDate.isBefore(registrationDate)) {
+                                        startDate = registrationDate;
                                     }
 
                                     KarmaState currentKarma = storedKarma;
+                                    KarmaState karmaBeforeLast = readKarmaBeforeLastProcessedVisit(profileFields);
+                                    int daysProcessedCount = 0;
+                                    long lastDaySteps = 0;
+                                    String lastProcessedString = lastProcessedDate.toString();
 
-                                    // Processa a evolução de karma apenas se for um novo dia ou a meta tiver mudado
-                                    if (!visitDate.equals(lastProcessedVisitDate) || !goal.equals(lastProcessedGoal)) {
-                                        KarmaState baseKarma = storedKarma;
-                                        if (visitDate.equals(lastProcessedVisitDate)) {
-                                            baseKarma = readKarmaBeforeLastProcessedVisit(profileFields);
-                                        }
+                                    // 5. Processar sequencialmente cada dia pendente desde startDate até ontem
+                                    LocalDate cursor = startDate;
+                                    while (!cursor.isAfter(yesterday)) {
+                                        String cursorDateStr = cursor.toString();
+                                        Long daySteps = stepsByDate.getOrDefault(cursorDateStr, 0L);
 
-                                        boolean goalAchieved = stepsOntem >= goal;
-                                        currentKarma = calculateFromGoal(baseKarma, goalAchieved);
-                                        updatePlayerKarma(username, currentKarma, baseKarma, visitDate, goal);
+                                        karmaBeforeLast = currentKarma;
+                                        boolean goalAchieved = daySteps >= goal;
+                                        currentKarma = calculateFromGoal(currentKarma, goalAchieved);
+
+                                        lastDaySteps = daySteps;
+                                        lastProcessedString = cursorDateStr;
+                                        daysProcessedCount++;
+
+                                        cursor = cursor.plusDays(1);
                                     }
 
-                                    sendWelcomeOrStatus(player, server, username, currentKarma, isLogin, true, stepsOntem);
+                                    // 6. Atualizar Firestore se foram processados novos dias
+                                    if (daysProcessedCount > 0) {
+                                        updatePlayerKarma(username, currentKarma, karmaBeforeLast, lastProcessedString, goal);
+                                    }
+
+                                    // 7. Enviar feedback e mensagens de boas-vindas
+                                    sendWelcomeOrStatus(player, server, username, currentKarma, isLogin, daysProcessedCount, lastDaySteps, yesterday.toString().equals(lastProcessedString));
                                     result.complete(currentKarma);
                                 }))
                 .exceptionally(ex -> {
@@ -140,7 +135,7 @@ public final class KarmaCalculator {
                     if (!isLogin) {
                         PlayerProfileManager.erro(player, server, "Erro ao comunicar com o Firestore.");
                     }
-                    sendWelcomeOrStatus(player, server, username, KarmaState.BASE, isLogin, false, 0);
+                    sendWelcomeOrStatus(player, server, username, KarmaState.BASE, isLogin, 0, 0, false);
                     result.complete(KarmaState.BASE);
                     return null;
                 });
@@ -154,8 +149,9 @@ public final class KarmaCalculator {
             String username,
             KarmaState karma,
             boolean isLogin,
-            boolean hasYesterdayData,
-            long stepsOntem
+            int daysProcessedCount,
+            long lastDaySteps,
+            boolean hasYesterdayData
     ) {
         FirebaseManager.onServerThread(server, () -> {
             // Sincroniza o Karma atual com o cliente via rede para atualização imediata do HUD
@@ -166,8 +162,9 @@ public final class KarmaCalculator {
 
             if (isLogin) {
                 com.nudgecraft.manager.KarmaEffectManager.setServerLoginTime(System.currentTimeMillis());
-                if (!hasYesterdayData) {
-                    // Mensagem de boas-vindas para novos jogadores / primeiro dia
+
+                if (daysProcessedCount == 0 && !hasYesterdayData) {
+                    // Primeiro dia de registo no estudo
                     player.sendSystemMessage(Component.literal("Bem-vindo/a ")
                             .withStyle(ChatFormatting.AQUA)
                             .append(Component.literal(username).withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD))
@@ -175,48 +172,38 @@ public final class KarmaCalculator {
                     return;
                 }
 
-                // Mensagem baseada no Karma
+                if (daysProcessedCount > 1) {
+                    // Notificação de ausência de múltiplos dias
+                    player.sendSystemMessage(Component.literal("Estiveste fora " + daysProcessedCount + " dias! O teu Karma foi atualizado com base nos teus passos diários.")
+                            .withStyle(ChatFormatting.GOLD));
+                }
+
+                // Mensagem baseada no estado de Karma resultante
                 switch (karma) {
                     case VNEGATIVE, NEGATIVE, SNEGATIVE -> {
-                        player.sendSystemMessage(Component.literal("O mundo à tua volta está a perder a sua cor... Fizeste " + stepsOntem + " passos ontem.")
+                        player.sendSystemMessage(Component.literal("O mundo à tua volta está a perder a sua cor... Fizeste " + lastDaySteps + " passos no último dia avaliado.")
                                 .withStyle(ChatFormatting.RED));
                     }
                     case SPOSITIVE, POSITIVE, VPOSITIVE -> {
-                        player.sendSystemMessage(Component.literal("O mundo à tua volta parece mais radiante e cheio de vida! Fizeste " + stepsOntem + " passos ontem.")
+                        player.sendSystemMessage(Component.literal("O mundo à tua volta parece mais radiante e cheio de vida! Fizeste " + lastDaySteps + " passos no último dia avaliado.")
                                 .withStyle(ChatFormatting.GREEN));
                     }
                     case BASE -> {
-                        player.sendSystemMessage(Component.literal("Mantém o ritmo! Fizeste " + stepsOntem + " passos ontem.")
+                        player.sendSystemMessage(Component.literal("Mantém o ritmo! Fizeste " + lastDaySteps + " passos no último dia avaliado.")
                                 .withStyle(ChatFormatting.YELLOW));
                     }
                 }
             } else {
                 // Resposta ao comando /karma
-                if (!hasYesterdayData) {
-                    player.sendSystemMessage(Component.literal("Karma atual: " + karma + " (Primeiro dia de registo no estudo / ponto de partida BASE).")
-                            .withStyle(ChatFormatting.YELLOW));
-                } else {
-                    ChatFormatting cor = switch (karma) {
-                        case VNEGATIVE, NEGATIVE, SNEGATIVE -> ChatFormatting.RED;
-                        case SPOSITIVE, POSITIVE, VPOSITIVE -> ChatFormatting.GREEN;
-                        case BASE -> ChatFormatting.YELLOW;
-                    };
-                    player.sendSystemMessage(Component.literal("Karma atual: " + karma + " | Passos de ontem: " + stepsOntem)
-                            .withStyle(cor));
-                }
+                ChatFormatting cor = switch (karma) {
+                    case VNEGATIVE, NEGATIVE, SNEGATIVE -> ChatFormatting.RED;
+                    case SPOSITIVE, POSITIVE, VPOSITIVE -> ChatFormatting.GREEN;
+                    case BASE -> ChatFormatting.YELLOW;
+                };
+                player.sendSystemMessage(Component.literal("Karma atual: " + karma + (lastDaySteps > 0 ? " | Passos recentes: " + lastDaySteps : ""))
+                        .withStyle(cor));
             }
         });
-    }
-
-    private static boolean isToday(String visitDate) {
-        if (visitDate == null) {
-            return false;
-        }
-        try {
-            return LocalDate.parse(visitDate).equals(LocalDate.now());
-        } catch (DateTimeParseException e) {
-            return false;
-        }
     }
 
     private static void updatePlayerKarma(
