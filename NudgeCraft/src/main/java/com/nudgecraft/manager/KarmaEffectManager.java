@@ -82,6 +82,8 @@ public final class KarmaEffectManager {
         manageAnimalProximity(player, level);
         updateCropMessageState(player);
         updateFlowerMessageState(player);
+        checkHungerLevel(player);
+        updateHungerMessageState(player);
         trackPlayTime(player);
         OreVeinManager.tick(player, level);
         FireflyLightingManager.tick(player, level);
@@ -143,6 +145,8 @@ public final class KarmaEffectManager {
     }
 
     private static final Map<UUID, Integer> FLOWER_MSG_TICKS = new ConcurrentHashMap<>();
+    private static final java.util.Set<UUID> HAS_SEEN_HUNGER_MSG = ConcurrentHashMap.newKeySet();
+    private static final Map<UUID, Integer> HUNGER_MSG_TICKS = new ConcurrentHashMap<>();
 
     public static void onPlayerDisconnect(ServerPlayer player) {
         UUID uuid = player.getUUID();
@@ -152,9 +156,38 @@ public final class KarmaEffectManager {
         ANIMAL_MSG_COOLDOWNS.remove(uuid);
         HAS_SEEN_FLOWER.remove(uuid);
         FLOWER_MSG_TICKS.remove(uuid);
+        HAS_SEEN_HUNGER_MSG.remove(uuid);
+        HUNGER_MSG_TICKS.remove(uuid);
         OreVeinManager.onPlayerDisconnect(player);
         FireflyLightingManager.onPlayerDisconnect(player);
         FatigueManager.onPlayerDisconnect(player);
+    }
+
+    public static void checkHungerLevel(ServerPlayer player) {
+        KarmaState current = getCurrentKarma();
+        if (current == KarmaState.SNEGATIVE || current == KarmaState.NEGATIVE || current == KarmaState.VNEGATIVE) {
+            if (player.getFoodData().getFoodLevel() <= 10) {
+                UUID uuid = player.getUUID();
+                if (HAS_SEEN_HUNGER_MSG.add(uuid)) {
+                    HUNGER_MSG_TICKS.put(uuid, 100); // 5 segundos
+                }
+            }
+        }
+    }
+
+    private static void updateHungerMessageState(ServerPlayer player) {
+        UUID uuid = player.getUUID();
+        Integer ticks = HUNGER_MSG_TICKS.get(uuid);
+        if (ticks != null && ticks > 0) {
+            HUNGER_MSG_TICKS.put(uuid, ticks - 1);
+            if (ticks % 20 == 0 || ticks == 100) {
+                player.sendSystemMessage(
+                        Component.literal("O teu apetite aumenta..")
+                                .withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC),
+                        true
+                );
+            }
+        }
     }
 
     public static void triggerFlowerMessage(ServerPlayer player) {

@@ -14,11 +14,11 @@ public abstract class PlayerHungerMixin {
     private float modifyFoodExhaustionByKarma(float exhaustion) {
         KarmaState current = KarmaStateHolder.get();
         if (current == KarmaState.SNEGATIVE) {
-            return exhaustion * 1.10f; // +10%
-        } else if (current == KarmaState.NEGATIVE) {
-            return exhaustion * 1.15f; // +15%
-        } else if (current == KarmaState.VNEGATIVE) {
             return exhaustion * 1.20f; // +20%
+        } else if (current == KarmaState.NEGATIVE) {
+            return exhaustion * 1.50f; // +50%
+        } else if (current == KarmaState.VNEGATIVE) {
+            return exhaustion * 2.00f; // +100%
         }
         return exhaustion;
     }

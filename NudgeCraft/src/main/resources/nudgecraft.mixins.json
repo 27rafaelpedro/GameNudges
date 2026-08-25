@@ -10,7 +10,8 @@
     "PlayerHungerMixin",
     "LevelWeatherMixin",
     "PlayerAttackMixin",
-    "PlayerJumpMixin"
+    "PlayerJumpMixin",
+    "FoodDataMixin"
   ],
   "client": [],
   "injectors": {
