@@ -106,8 +106,8 @@ public final class KarmaCalculator {
                                     KarmaState currentKarma = storedKarma;
                                     KarmaState karmaBeforeLast = readKarmaBeforeLastProcessedVisit(profileFields);
                                     int daysProcessedCount = 0;
-                                    long lastDaySteps = 0;
                                     String lastProcessedString = lastProcessedDate.toString();
+                                    long lastDaySteps = stepsByDate.getOrDefault(lastProcessedString, stepsByDate.getOrDefault(yesterday.toString(), 0L));
 
                                     LocalDate cursor = startDate;
                                     while (!cursor.isAfter(yesterday)) {
