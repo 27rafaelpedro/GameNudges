@@ -66,7 +66,7 @@ public final class FireflyLightingManager {
 
             int lightLevel = 0;
             if (current == KarmaState.POSITIVE) {
-                lightLevel = 6;
+                lightLevel = 7;
             } else if (current == KarmaState.VPOSITIVE) {
                 lightLevel = 12;
             }
