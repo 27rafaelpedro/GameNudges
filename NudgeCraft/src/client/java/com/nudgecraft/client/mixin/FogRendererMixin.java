@@ -20,18 +20,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(FogRenderer.class)
 public abstract class FogRendererMixin {
 
-    /**
-     * Injeta na conclusão do método setupFog do FogRenderer para alterar a distância
-     * de início e fim do nevoeiro se o jogador estiver em Very Negative e sem iluminação.
-     */
     @Inject(method = "setupFog", at = @At("RETURN"))
     private void onSetupFog(Camera camera, int fogType, DeltaTracker deltaTracker, float viewDistance, ClientLevel level, CallbackInfoReturnable<FogData> cir) {
         if (KarmaHudOverlay.getClientKarma() == KarmaState.VNEGATIVE) {
             int brightness = level.getMaxLocalRawBrightness(camera.blockPosition());
-            // Se o brilho máximo no bloco for inferior a 7 (longe de tochas/lava/glowstone ao anoitecer/em cavernas)
             if (brightness < 7) {
                 FogData data = cir.getReturnValue();
-                // Reduz as distâncias de renderização do nevoeiro para limitar fortemente a visão a 14 blocos
                 data.renderDistanceStart = 0.0f;
                 data.renderDistanceEnd = 14.0f;
                 data.environmentalStart = 0.0f;

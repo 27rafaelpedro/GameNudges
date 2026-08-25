@@ -5,7 +5,8 @@
   "client": [
     "HudMixin",
     "FogRendererMixin",
-    "EffectsInInventoryMixin"
+    "SunsetAtmosphereMixin",
+    "SkyRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1

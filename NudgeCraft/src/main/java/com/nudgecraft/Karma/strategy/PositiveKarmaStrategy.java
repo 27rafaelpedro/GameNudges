@@ -74,8 +74,8 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
     }
 
     /**
-     * Aplica partículas de login, florestação espontânea e aceleração de culturas do jogador
-     * exclusivamente nos estados POSITIVE e VPOSITIVE, com som e faíscas verdes.
+     * Aplica partículas verdes temporárias de login (15s), florestação espontânea
+     * e aceleração de culturas do jogador exclusivamente nos estados POSITIVE e VPOSITIVE.
      *
      * @param player O jogador sob efeito da estratégia.
      * @param level  O nível de servidor onde o jogador se encontra.
@@ -83,11 +83,12 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
     @Override
     public void applyPassiveEffects(ServerPlayer player, ServerLevel level) {
         long elapsed = System.currentTimeMillis() - KarmaEffectManager.getServerLoginTime();
+        // Apenas durante os primeiros 15 segundos após o login
         if (elapsed <= 15000) {
-            if (level.getRandom().nextFloat() < 0.1f) {
-                level.sendParticles(ParticleTypes.GLOW,
+            if (level.getRandom().nextFloat() < 0.15f) {
+                level.sendParticles(ParticleTypes.HAPPY_VILLAGER,
                         player.getX(), player.getY() + 1.0, player.getZ(),
-                        3, 0.4, 0.4, 0.4, 0.1);
+                        2, 0.4, 0.4, 0.4, 0.0);
             }
         }
 
@@ -125,9 +126,6 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
                         level.sendParticles(ParticleTypes.HAPPY_VILLAGER,
                                 pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
                                 4, 0.3, 0.3, 0.3, 0.0);
-                        level.sendParticles(ParticleTypes.GLOW,
-                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                                3, 0.2, 0.2, 0.2, 0.0);
 
                         KarmaEffectManager.triggerCropMessage(player, true);
                     }
