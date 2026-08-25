@@ -133,22 +133,92 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
             }
         }
 
-        if (level.getGameTime() % 100 == 0) {
-            int rangeX = level.getRandom().nextInt(9) - 4;
-            int rangeY = level.getRandom().nextInt(3) - 1;
-            int rangeZ = level.getRandom().nextInt(9) - 4;
-
-            BlockPos pos = player.blockPosition().offset(rangeX, rangeY, rangeZ);
-            BlockState state = level.getBlockState(pos);
-
-            if (state.is(Blocks.GRASS_BLOCK)) {
-                BlockPos posAbove = pos.above();
-                if (level.isEmptyBlock(posAbove)) {
-                    if (level.getRandom().nextFloat() < 0.50f) {
-                        BlockState randomFlower = FLOWERS[level.getRandom().nextInt(FLOWERS.length)];
-                        level.setBlockAndUpdate(posAbove, randomFlower);
+        // Curar a Terra (Transforma Dirt em Grass)
+        if (level.getGameTime() % 20 == 0) {
+            int radius = (current == KarmaState.VPOSITIVE) ? 2 : 1;
+            BlockPos basePos = player.blockPosition();
+            boolean healedAny = false;
+            
+            for (int dy = -1; dy <= 0; dy++) {
+                for (int dx = -radius; dx <= radius; dx++) {
+                    for (int dz = -radius; dz <= radius; dz++) {
+                        if (dx * dx + dz * dz <= radius * radius) {
+                            BlockPos targetPos = basePos.offset(dx, dy, dz);
+                            BlockState targetState = level.getBlockState(targetPos);
+                            
+                            if (targetState.is(Blocks.DIRT) || targetState.is(Blocks.COARSE_DIRT)) {
+                                // A relva precisa de luz/ar por cima para nascer
+                                BlockState stateAbove = level.getBlockState(targetPos.above());
+                                if (!stateAbove.isSolidRender()) {
+                                    if (level.getRandom().nextFloat() < 0.25f) { // 25% probabilidade por bloco a cada seg
+                                        level.setBlockAndUpdate(targetPos, Blocks.GRASS_BLOCK.defaultBlockState());
+                                        
+                                        // Partículas mágicas de cura
+                                        level.sendParticles(ParticleTypes.HAPPY_VILLAGER,
+                                                targetPos.getX() + 0.5, targetPos.getY() + 1.0, targetPos.getZ() + 0.5,
+                                                2, 0.2, 0.1, 0.2, 0.0);
+                                                
+                                        healedAny = true;
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
+            }
+            
+            if (healedAny) {
+                float pitch = 0.9f + level.getRandom().nextFloat() * 0.2f;
+                level.playSound(null, player.blockPosition(), SoundEvents.GRASS_PLACE, SoundSource.BLOCKS, 0.6f, pitch);
+            }
+        }
+
+        // Spawning de flores (Efeito de área - 3 a 4 flores)
+        if (level.getGameTime() % 40 == 0) {
+            int flowersToSpawn = 3 + level.getRandom().nextInt(2); // 3 a 4 flores
+            boolean spawnedAny = false;
+
+            for (int i = 0; i < flowersToSpawn; i++) {
+                int rangeX = level.getRandom().nextInt(11) - 5;
+                int rangeY = level.getRandom().nextInt(5) - 2;
+                int rangeZ = level.getRandom().nextInt(11) - 5;
+
+                BlockPos pos = player.blockPosition().offset(rangeX, rangeY, rangeZ);
+                BlockState state = level.getBlockState(pos);
+
+                if (state.is(Blocks.GRASS_BLOCK)) {
+                    BlockPos posAbove = pos.above();
+                    if (level.isEmptyBlock(posAbove)) {
+                        BlockState randomFlower = FLOWERS[level.getRandom().nextInt(FLOWERS.length)];
+                        level.setBlockAndUpdate(posAbove, randomFlower);
+                        
+                        // Sistema de permanência condicional
+                        boolean isPermanent = false;
+                        if (current == KarmaState.VPOSITIVE) {
+                            isPermanent = level.getRandom().nextFloat() < 0.80f; // 80% mantém-se
+                        } else if (current == KarmaState.POSITIVE) {
+                            isPermanent = level.getRandom().nextFloat() < 0.40f; // 40% mantém-se
+                        }
+
+                        if (!isPermanent) {
+                            com.nudgecraft.manager.TemporaryBlockManager.registerTemporaryBlock(posAbove, level);
+                        }
+
+                        // Partículas e Som individual para cada flor
+                        level.sendParticles(ParticleTypes.HAPPY_VILLAGER,
+                                posAbove.getX() + 0.5, posAbove.getY() + 0.5, posAbove.getZ() + 0.5,
+                                5, 0.3, 0.3, 0.3, 0.0);
+                                
+                        float pitch = 0.8f + level.getRandom().nextFloat() * 0.4f;
+                        level.playSound(null, posAbove, SoundEvents.GRASS_PLACE, SoundSource.BLOCKS, 0.5f, pitch);
+                        
+                        spawnedAny = true;
+                    }
+                }
+            }
+
+            if (spawnedAny) {
+                KarmaEffectManager.triggerFlowerMessage(player);
             }
         }
     }

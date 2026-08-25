@@ -35,6 +35,7 @@ public final class KarmaEffectManager {
     private static final Map<UUID, CropMessageState> CROP_MSG_STATES = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> AIRBORNE_VALID_TICKS = new ConcurrentHashMap<>();
     private static final Map<UUID, Integer> ANIMAL_MSG_COOLDOWNS = new ConcurrentHashMap<>();
+    private static final java.util.Set<UUID> HAS_SEEN_FLOWER = ConcurrentHashMap.newKeySet();
 
     private static class CropMessageState {
         int displayTicks = 0;
@@ -80,6 +81,7 @@ public final class KarmaEffectManager {
         manageDaytimeSpeed(level);
         manageAnimalProximity(player, level);
         updateCropMessageState(player);
+        updateFlowerMessageState(player);
         trackPlayTime(player);
         OreVeinManager.tick(player, level);
         FireflyLightingManager.tick(player, level);
@@ -140,15 +142,41 @@ public final class KarmaEffectManager {
         }
     }
 
+    private static final Map<UUID, Integer> FLOWER_MSG_TICKS = new ConcurrentHashMap<>();
+
     public static void onPlayerDisconnect(ServerPlayer player) {
         UUID uuid = player.getUUID();
         PLAY_TIME_TICKS.remove(uuid);
         CROP_MSG_STATES.remove(uuid);
         AIRBORNE_VALID_TICKS.remove(uuid);
         ANIMAL_MSG_COOLDOWNS.remove(uuid);
+        HAS_SEEN_FLOWER.remove(uuid);
+        FLOWER_MSG_TICKS.remove(uuid);
         OreVeinManager.onPlayerDisconnect(player);
         FireflyLightingManager.onPlayerDisconnect(player);
         FatigueManager.onPlayerDisconnect(player);
+    }
+
+    public static void triggerFlowerMessage(ServerPlayer player) {
+        UUID uuid = player.getUUID();
+        if (HAS_SEEN_FLOWER.add(uuid)) {
+            FLOWER_MSG_TICKS.put(uuid, 100); // 5 segundos
+        }
+    }
+
+    private static void updateFlowerMessageState(ServerPlayer player) {
+        UUID uuid = player.getUUID();
+        Integer ticks = FLOWER_MSG_TICKS.get(uuid);
+        if (ticks != null && ticks > 0) {
+            FLOWER_MSG_TICKS.put(uuid, ticks - 1);
+            if (ticks % 20 == 0 || ticks == 100) { // Envia a cada segundo para manter no ecrã
+                player.sendSystemMessage(
+                        Component.literal("A natureza decora o teu caminho!")
+                                .withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC),
+                        true
+                );
+            }
+        }
     }
 
     public static void triggerCropMessage(ServerPlayer player, boolean isGrowth) {
