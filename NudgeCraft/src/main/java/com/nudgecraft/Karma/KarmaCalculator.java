@@ -160,6 +160,7 @@ public final class KarmaCalculator {
         FirebaseManager.onServerThread(server, () -> {
             ServerPlayNetworking.send(player, new KarmaPayload(karma.name()));
             com.nudgecraft.manager.KarmaEffectManager.updateStrategy(karma);
+            com.nudgecraft.Karma.KarmaStateHolder.set(karma);
 
             if (isLogin) {
                 com.nudgecraft.manager.KarmaEffectManager.setServerLoginTime(System.currentTimeMillis());

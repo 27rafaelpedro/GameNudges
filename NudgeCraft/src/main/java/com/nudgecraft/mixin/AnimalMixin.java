@@ -25,10 +25,9 @@ public abstract class AnimalMixin extends PathfinderMob {
         }
 
         KarmaState state = KarmaEffectManager.getCurrentKarma();
-        if (state == KarmaState.NEGATIVE || state == KarmaState.SNEGATIVE || state == KarmaState.VNEGATIVE) {
+        if (state == KarmaState.NEGATIVE || state == KarmaState.VNEGATIVE) {
             Player player = this.level().getNearestPlayer(this.getX(), this.getY(), this.getZ(), 8.0, false);
             if (player != null) {
-                // If close, panic-move in the opposite direction
                 if (this.tickCount % 20 == 0 && !this.getNavigation().isInProgress()) {
                     Vec3 playerPos = player.position();
                     Vec3 animalPos = this.position();

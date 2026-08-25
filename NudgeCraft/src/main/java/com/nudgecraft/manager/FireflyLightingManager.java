@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * - POSITIVE:  Partículas nativas de Firefly + iluminação suave estável (Nível 6).
  * - VPOSITIVE: Partículas nativas de Firefly + iluminação forte estável (Nível 12).
  *
- * Envia mensagens na Action Bar ao afastar-se de fontes de luz:
+ * Envia mensagens na Action Bar ao afastar-se de fontes de luz exclusivamente nos extremos:
  * - VPOSITIVE: "A natureza ilumina o teu caminho!"
  * - VNEGATIVE: "A tua visão falha.."
  */
@@ -78,7 +78,7 @@ public final class FireflyLightingManager {
     }
 
     /**
-     * Aciona a mensagem na Action Bar ao afastar-se de fontes de luz caso o cooldown tenha expirado.
+     * Aciona a mensagem na Action Bar ao afastar-se de fontes de luz exclusivamente em VPOSITIVE e VNEGATIVE.
      */
     private static void handleMovingAwayFromLight(ServerPlayer player, ServerLevel level, UUID uuid, KarmaState karma, boolean isNight) {
         int cooldown = LIGHT_MSG_COOLDOWN.getOrDefault(uuid, 0);
@@ -86,7 +86,7 @@ public final class FireflyLightingManager {
             return;
         }
 
-        if (karma == KarmaState.VPOSITIVE || karma == KarmaState.POSITIVE) {
+        if (karma == KarmaState.VPOSITIVE) {
             if (isNight) {
                 player.sendSystemMessage(
                         Component.literal("A natureza ilumina o teu caminho!")
@@ -95,7 +95,7 @@ public final class FireflyLightingManager {
                 );
                 LIGHT_MSG_COOLDOWN.put(uuid, MSG_COOLDOWN_TICKS);
             }
-        } else if (karma == KarmaState.VNEGATIVE || karma == KarmaState.NEGATIVE) {
+        } else if (karma == KarmaState.VNEGATIVE) {
             if (isNight) {
                 player.sendSystemMessage(
                         Component.literal("A tua visão falha..")

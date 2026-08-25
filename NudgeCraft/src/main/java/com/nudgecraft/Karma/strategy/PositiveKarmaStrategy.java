@@ -4,6 +4,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.block.AzaleaBlock;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.BonemealableBlock;
@@ -72,7 +74,8 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
     }
 
     /**
-     * Aplica partículas de login, florestação espontânea e aceleração de culturas do jogador.
+     * Aplica partículas de login, florestação espontânea e aceleração de culturas do jogador
+     * exclusivamente nos estados POSITIVE e VPOSITIVE, com som e faíscas verdes.
      *
      * @param player O jogador sob efeito da estratégia.
      * @param level  O nível de servidor onde o jogador se encontra.
@@ -88,22 +91,46 @@ public class PositiveKarmaStrategy implements KarmaStrategy {
             }
         }
 
-        if (level.getRandom().nextFloat() < 0.15f) {
-            int rangeX = level.getRandom().nextInt(11) - 5;
-            int rangeY = level.getRandom().nextInt(5) - 2;
-            int rangeZ = level.getRandom().nextInt(11) - 5;
+        KarmaState current = KarmaEffectManager.getCurrentKarma();
 
-            BlockPos pos = player.blockPosition().offset(rangeX, rangeY, rangeZ);
-            BlockState state = level.getBlockState(pos);
+        // Aceleração de colheitas exclusiva de POSITIVE e VPOSITIVE
+        int attempts = switch (current) {
+            case VPOSITIVE -> 3;
+            case POSITIVE -> 2;
+            default -> 0;
+        };
 
-            if (state.getBlock() instanceof BonemealableBlock bonemealable && isPlayerCrop(state, level, pos)) {
-                if (bonemealable.isValidBonemealTarget(level, pos, state) && bonemealable.isBonemealSuccess(level, level.getRandom(), pos, state)) {
-                    bonemealable.performBonemeal(level, level.getRandom(), pos, state);
-                    level.sendParticles(ParticleTypes.GLOW,
-                            pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                            3, 0.2, 0.2, 0.2, 0.0);
+        float chancePerAttempt = switch (current) {
+            case VPOSITIVE -> 0.40f;
+            case POSITIVE -> 0.25f;
+            default -> 0.0f;
+        };
 
-                    KarmaEffectManager.triggerCropMessage(player, true);
+        for (int i = 0; i < attempts; i++) {
+            if (level.getRandom().nextFloat() < chancePerAttempt) {
+                int rangeX = level.getRandom().nextInt(11) - 5;
+                int rangeY = level.getRandom().nextInt(5) - 2;
+                int rangeZ = level.getRandom().nextInt(11) - 5;
+
+                BlockPos pos = player.blockPosition().offset(rangeX, rangeY, rangeZ);
+                BlockState state = level.getBlockState(pos);
+
+                if (state.getBlock() instanceof BonemealableBlock bonemealable && isPlayerCrop(state, level, pos)) {
+                    if (bonemealable.isValidBonemealTarget(level, pos, state) && bonemealable.isBonemealSuccess(level, level.getRandom(), pos, state)) {
+                        bonemealable.performBonemeal(level, level.getRandom(), pos, state);
+
+                        float pitch = 0.9f + level.getRandom().nextFloat() * 0.3f;
+                        level.playSound(null, pos, SoundEvents.BONE_MEAL_USE, SoundSource.BLOCKS, 0.8f, pitch);
+
+                        level.sendParticles(ParticleTypes.HAPPY_VILLAGER,
+                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                                4, 0.3, 0.3, 0.3, 0.0);
+                        level.sendParticles(ParticleTypes.GLOW,
+                                pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                                3, 0.2, 0.2, 0.2, 0.0);
+
+                        KarmaEffectManager.triggerCropMessage(player, true);
+                    }
                 }
             }
         }

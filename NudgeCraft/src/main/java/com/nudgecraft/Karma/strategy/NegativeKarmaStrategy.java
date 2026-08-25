@@ -4,6 +4,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.tags.BlockTags;
@@ -24,7 +26,7 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
 
     /**
      * Aplica a taxa metabólica aumentada de fome, partículas de fumo,
-     * controlo climático com cooldown e dessecação de plantas ao redor do jogador.
+     * controlo climático com cooldown e dessecação de culturas/flores ao redor do jogador.
      *
      * @param player O jogador sob efeito da estratégia.
      * @param level  O nível de servidor onde o jogador se encontra.
@@ -116,39 +118,55 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
             }
         }
 
-        float tickChance = (current == KarmaState.VNEGATIVE) ? 0.8f : 0.4f;
-        if (level.getRandom().nextFloat() < tickChance) {
-            int rangeX = level.getRandom().nextInt(11) - 5;
-            int rangeY = level.getRandom().nextInt(5) - 2;
-            int rangeZ = level.getRandom().nextInt(11) - 5;
+        // Murchamento e dessecação de culturas exclusivo de NEGATIVE e VNEGATIVE
+        int attempts = switch (current) {
+            case VNEGATIVE -> 3;
+            case NEGATIVE -> 2;
+            default -> 0;
+        };
 
-            BlockPos pos = player.blockPosition().offset(rangeX, rangeY, rangeZ);
-            BlockState state = level.getBlockState(pos);
+        float chancePerAttempt = switch (current) {
+            case VNEGATIVE -> 0.40f;
+            case NEGATIVE -> 0.25f;
+            default -> 0.0f;
+        };
 
-            if (state.is(BlockTags.FLOWERS)) {
-                float flowerDecayChance = (current == KarmaState.VNEGATIVE) ? 0.75f : 0.40f;
-                if (level.getRandom().nextFloat() < flowerDecayChance) {
+        for (int i = 0; i < attempts; i++) {
+            if (level.getRandom().nextFloat() < chancePerAttempt) {
+                int rangeX = level.getRandom().nextInt(11) - 5;
+                int rangeY = level.getRandom().nextInt(5) - 2;
+                int rangeZ = level.getRandom().nextInt(11) - 5;
+
+                BlockPos pos = player.blockPosition().offset(rangeX, rangeY, rangeZ);
+                BlockState state = level.getBlockState(pos);
+
+                if (state.is(BlockTags.FLOWERS)) {
                     level.setBlockAndUpdate(pos, Blocks.DEAD_BUSH.defaultBlockState());
+
+                    float pitch = 0.7f + level.getRandom().nextFloat() * 0.2f;
+                    level.playSound(null, pos, SoundEvents.CROP_BREAK, SoundSource.BLOCKS, 0.75f, pitch);
+
                     level.sendParticles(ParticleTypes.SMOKE,
                             pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                            3, 0.2, 0.2, 0.2, 0.0);
-                }
-            } else if (PositiveKarmaStrategy.isPlayerCrop(state, level, pos)) {
-                Property<?> ageProp = state.getProperties().stream()
-                        .filter(p -> p.getName().equals("age") && p instanceof IntegerProperty)
-                        .findFirst()
-                        .orElse(null);
+                            4, 0.25, 0.25, 0.25, 0.02);
+                } else if (PositiveKarmaStrategy.isPlayerCrop(state, level, pos)) {
+                    Property<?> ageProp = state.getProperties().stream()
+                            .filter(p -> p.getName().equals("age") && p instanceof IntegerProperty)
+                            .findFirst()
+                            .orElse(null);
 
-                if (ageProp != null) {
-                    IntegerProperty intAgeProp = (IntegerProperty) ageProp;
-                    int age = state.getValue(intAgeProp);
-                    if (age > 0) {
-                        float cropDecayChance = (current == KarmaState.VNEGATIVE) ? 0.75f : 0.40f;
-                        if (level.getRandom().nextFloat() < cropDecayChance) {
+                    if (ageProp != null) {
+                        IntegerProperty intAgeProp = (IntegerProperty) ageProp;
+                        int age = state.getValue(intAgeProp);
+                        if (age > 0) {
                             level.setBlockAndUpdate(pos, state.setValue(intAgeProp, age - 1));
+
+                            float pitch = 0.6f + level.getRandom().nextFloat() * 0.2f;
+                            level.playSound(null, pos, SoundEvents.CROP_BREAK, SoundSource.BLOCKS, 0.75f, pitch);
+
                             level.sendParticles(ParticleTypes.SMOKE,
-                            pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                            3, 0.2, 0.2, 0.2, 0.0);
+                                    pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
+                                    4, 0.25, 0.25, 0.25, 0.02);
 
                             KarmaEffectManager.triggerCropMessage(player, false);
                         }

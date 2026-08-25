@@ -21,7 +21,7 @@ public abstract class TemptGoalMixin {
     @Inject(method = "canUse", at = @At("HEAD"), cancellable = true)
     private void injectTemptByKarma(CallbackInfoReturnable<Boolean> cir) {
         KarmaState state = KarmaEffectManager.getCurrentKarma();
-        if (state == KarmaState.POSITIVE || state == KarmaState.SPOSITIVE || state == KarmaState.VPOSITIVE) {
+        if (state == KarmaState.POSITIVE || state == KarmaState.VPOSITIVE) {
             Player nearest = this.mob.level().getNearestPlayer(this.mob.getX(), this.mob.getY(), this.mob.getZ(), 10.0, EntitySelector.NO_SPECTATORS);
             if (nearest != null) {
                 this.player = nearest;

@@ -3,6 +3,7 @@ package com.nudgecraft.command;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.nudgecraft.Karma.KarmaState;
+import com.nudgecraft.Karma.KarmaStateHolder;
 import com.nudgecraft.Karma.KarmaPayload;
 import com.nudgecraft.manager.KarmaEffectManager;
 import com.nudgecraft.firebase.FirebaseManager;
@@ -83,6 +84,7 @@ public final class ModCommands {
 
                                     // Atualiza estratégia no servidor
                                     KarmaEffectManager.updateStrategy(karma);
+                                    KarmaStateHolder.set(karma);
 
                                     // Redefine login time para teste instantâneo de partículas
                                     KarmaEffectManager.setServerLoginTime(System.currentTimeMillis());
