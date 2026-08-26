@@ -21,8 +21,7 @@ import com.nudgecraft.manager.TemporaryBlockManager;
  */
 public class NegativeKarmaStrategy implements KarmaStrategy {
 
-    private static final long RAIN_COOLDOWN_TICKS = 18000L;
-    private static long nextAllowedRainGameTime = 0L;
+
 
     /**
      * Aplica a taxa metabólica aumentada de fome, partículas de fumo,
@@ -55,22 +54,30 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
             }
         }
 
-        if (gameTime % 1200 == 0 && level.getServer() != null) {
-            if (gameTime >= nextAllowedRainGameTime && !level.isRaining()) {
-                if (current == KarmaState.VNEGATIVE) {
-                    if (level.getRandom().nextFloat() < 0.25f) {
-                        boolean thunder = level.getRandom().nextFloat() < 0.10f;
-                        level.getServer().setWeatherParameters(0, 3000, true, thunder);
-                        nextAllowedRainGameTime = gameTime + RAIN_COOLDOWN_TICKS;
-                    }
+        // Período de carência de 3 minutos (180.000 ms) ao entrar no jogo / receber karma
+        if (elapsed < 180000) {
+            // Se estiver a chover no momento em que entra, limpa a chuva imediatamente
+            if (level.isRaining()) {
+                level.getServer().setWeatherParameters(3600, 0, false, false); // Força tempo limpo
+            }
+            // Durante estes 3 minutos, não aceleramos o relógio para que o tempo passe normalmente ou fique limpo.
+        } else if (level.getWeatherData() != null) {
+            // Acelera o fim do tempo limpo, aumentando probabilisticamente a chuva de forma natural
+            int clearTime = level.getWeatherData().getClearWeatherTime();
+            if (clearTime > 0) {
+                int extraDecrease = 0;
+                
+                if (current == KarmaState.SNEGATIVE) {
+                    if (level.getRandom().nextFloat() < 0.20f) extraDecrease = 1; // +20% velocidade
                 } else if (current == KarmaState.NEGATIVE) {
-                    if (level.getRandom().nextFloat() < 0.15f) {
-                        level.getServer().setWeatherParameters(0, 2400, true, false);
-                        nextAllowedRainGameTime = gameTime + RAIN_COOLDOWN_TICKS;
-                    }
+                    if (level.getRandom().nextFloat() < 0.50f) extraDecrease = 1; // +50% velocidade
+                } else if (current == KarmaState.VNEGATIVE) {
+                    extraDecrease = 1; // +100% velocidade
                 }
-            } else if (level.isRaining() && nextAllowedRainGameTime < gameTime) {
-                nextAllowedRainGameTime = gameTime + RAIN_COOLDOWN_TICKS;
+                
+                if (extraDecrease > 0) {
+                    level.getWeatherData().setClearWeatherTime(Math.max(0, clearTime - extraDecrease));
+                }
             }
         }
 

@@ -8,10 +8,6 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-/**
- * Mixin que ajusta dinamicamente a atmosfera visual, escurecimento e cinzento do céu
- * durante o dia de acordo com o nível progressivo de Karma Negativo.
- */
 @Mixin(Level.class)
 public abstract class LevelWeatherMixin {
 

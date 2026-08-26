@@ -11,6 +11,7 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.tags.BlockTags;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.item.ItemEntity;
@@ -49,10 +50,18 @@ public final class BlockBreakEventHandler {
             boolean isMiningBlock = state.is(BlockTags.MINEABLE_WITH_PICKAXE) || OreVeinManager.isOreBlock(state.getBlock());
 
             if (isMiningBlock && level.getRandom().nextFloat() < 0.04f) { // 4% de probabilidade
-                EntityTypes.SILVERFISH.spawn(serverLevel, pos, EntitySpawnReason.EVENT);
-
-                // Remove o bloco sem dropar qualquer item
+                // Remove o bloco primeiro para nao asfixiar nem fundir o silverfish
                 serverLevel.removeBlock(pos, false);
+                
+                Entity silverfish = EntityTypes.SILVERFISH.spawn(serverLevel, pos, EntitySpawnReason.EVENT);
+                if (silverfish != null) {
+                    silverfish.addTag("KarmaPenaltySilverfish");
+                    if (silverfish instanceof net.minecraft.world.entity.Mob mob) {
+                        mob.setTarget(player);
+                        mob.setPersistenceRequired(); // Impede despawn imediato
+                        mob.setInvulnerable(true); // Impede que morra acidentalmente (só morre ao morder)
+                    }
+                }
 
                 // Efeitos sonoros e visuais de infestação de silverfish
                 serverLevel.sendParticles(ParticleTypes.POOF, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
@@ -61,7 +70,7 @@ public final class BlockBreakEventHandler {
                         6, 0.2, 0.2, 0.2, 0.02);
 
                 serverLevel.playSound(null, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                        SoundEvents.SILVERFISH_HURT, SoundSource.HOSTILE, 1.0f, 1.0f);
+                        SoundEvents.SILVERFISH_AMBIENT, SoundSource.HOSTILE, 1.0f, 1.0f);
 
                 // Cancela o drop e o evento normal de quebra
                 return false;
