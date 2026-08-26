@@ -5,7 +5,6 @@
   "mixins": [
     "TemptGoalMixin",
     "AnimalMixin",
-    "BlockItemMixin",
     "PlayerDestroySpeedMixin",
     "PlayerHungerMixin",
     "LevelWeatherMixin",
