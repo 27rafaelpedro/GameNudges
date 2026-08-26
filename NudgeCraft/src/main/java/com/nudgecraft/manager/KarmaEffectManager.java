@@ -78,7 +78,7 @@ public final class KarmaEffectManager {
 
     public static void tick(ServerPlayer player, ServerLevel level) {
         managePositiveSpeed(player, level);
-        manageDaytimeSpeed(level);
+        TimeSpeedManager.tick(level);
         manageAnimalProximity(player, level);
         updateCropMessageState(player);
         updateFlowerMessageState(player);
@@ -161,6 +161,7 @@ public final class KarmaEffectManager {
         OreVeinManager.onPlayerDisconnect(player);
         FireflyLightingManager.onPlayerDisconnect(player);
         FatigueManager.onPlayerDisconnect(player);
+        TimeSpeedManager.onPlayerDisconnect(player);
     }
 
     public static void checkHungerLevel(ServerPlayer player) {
@@ -189,6 +190,8 @@ public final class KarmaEffectManager {
             }
         }
     }
+
+
 
     public static void triggerFlowerMessage(ServerPlayer player) {
         UUID uuid = player.getUUID();
@@ -327,30 +330,7 @@ public final class KarmaEffectManager {
         }
     }
 
-    private static void manageDaytimeSpeed(ServerLevel level) {
-        if (level == null || level.getServer() == null) {
-            return;
-        }
 
-        KarmaState current = getCurrentKarma();
-        boolean isDay = !level.isDarkOutside();
-
-        float targetRate = 1.0f;
-        if (isDay) {
-            if (current == KarmaState.SNEGATIVE) {
-                targetRate = 1.10f; // +10%
-            } else if (current == KarmaState.NEGATIVE) {
-                targetRate = 1.15f; // +15%
-            } else if (current == KarmaState.VNEGATIVE) {
-                targetRate = 1.20f; // +20%
-            }
-        }
-
-        Holder<WorldClock> clock = level.dimensionTypeRegistration().value().defaultClock().orElse(null);
-        if (clock != null) {
-            level.getServer().clockManager().setRate(clock, targetRate);
-        }
-    }
 
     private static boolean isNaturalBuildingSurface(BlockState state) {
         if (state == null || state.isAir()) {
