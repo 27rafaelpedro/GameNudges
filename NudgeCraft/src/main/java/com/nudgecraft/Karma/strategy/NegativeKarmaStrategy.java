@@ -1,39 +1,31 @@
 package com.nudgecraft.Karma.strategy;
 
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.sounds.SoundEvents;
-import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.tags.BlockTags;
-import net.minecraft.world.level.block.state.properties.IntegerProperty;
-import net.minecraft.world.level.block.state.properties.Property;
 import com.nudgecraft.Karma.KarmaState;
+import com.nudgecraft.Karma.KarmaStateHolder;
 import com.nudgecraft.manager.KarmaEffectManager;
 import com.nudgecraft.manager.TemporaryBlockManager;
+import com.nudgecraft.mixin.LevelAccessor;
+import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.tags.BlockTags;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.IntegerProperty;
+import net.minecraft.world.level.block.state.properties.Property;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.level.saveddata.WeatherData;
 
-/**
- * Estratégia de Karma que aplica as penalizações, efeitos e decaimento ambiental
- * associados aos estados de Karma Negativo (SNEGATIVE, NEGATIVE e VNEGATIVE).
- */
 public class NegativeKarmaStrategy implements KarmaStrategy {
 
+    private boolean thunderCheckedForCurrentStorm = false;
 
-
-    /**
-     * Aplica a taxa metabólica aumentada de fome, partículas de fumo,
-     * controlo climático com cooldown e dessecação de culturas/flores ao redor do jogador.
-     *
-     * @param player O jogador sob efeito da estratégia.
-     * @param level  O nível de servidor onde o jogador se encontra.
-     */
     @Override
     public void applyPassiveEffects(ServerPlayer player, ServerLevel level) {
-        long elapsed = System.currentTimeMillis() - KarmaEffectManager.getServerLoginTime();
-        if (elapsed <= 15000) {
+        long loginElapsed = System.currentTimeMillis() - KarmaEffectManager.getServerLoginTime();
+        if (loginElapsed <= 15000) {
             if (level.getRandom().nextFloat() < 0.1f) {
                 level.sendParticles(ParticleTypes.SMOKE,
                         player.getX(), player.getY() + 1.0, player.getZ(),
@@ -41,7 +33,7 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
             }
         }
 
-        KarmaState current = KarmaEffectManager.getCurrentKarma();
+        KarmaState current = KarmaStateHolder.get();
         long gameTime = level.getGameTime();
 
         if (gameTime % 20 == 0) {
@@ -54,41 +46,70 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
             }
         }
 
-        // Período de carência de 3 minutos (180.000 ms) ao entrar no jogo / receber karma
-        if (elapsed < 180000) {
-            // Se estiver a chover no momento em que entra, limpa a chuva imediatamente
-            if (level.isRaining()) {
-                level.getServer().setWeatherParameters(3600, 0, false, false); // Força tempo limpo
+        long karmaElapsed = System.currentTimeMillis() - KarmaStateHolder.getLastStateChangeTime();
+        
+        if (karmaElapsed < 5000) {
+            float realRain = ((LevelAccessor) level).getRealRainLevel();
+            if (realRain > 0.0f) {
+                level.getServer().setWeatherParameters(3600, 0, false, false);
             }
-            // Durante estes 3 minutos, não aceleramos o relógio para que o tempo passe normalmente ou fique limpo.
-        } else if (level.getWeatherData() != null) {
-            // Acelera o fim do tempo limpo, aumentando probabilisticamente a chuva de forma natural
-            int clearTime = level.getWeatherData().getClearWeatherTime();
-            if (clearTime > 0) {
-                int extraDecrease = 0;
-                
-                if (current == KarmaState.SNEGATIVE) {
-                    if (level.getRandom().nextFloat() < 0.20f) extraDecrease = 1; // +20% velocidade
-                } else if (current == KarmaState.NEGATIVE) {
-                    if (level.getRandom().nextFloat() < 0.50f) extraDecrease = 1; // +50% velocidade
-                } else if (current == KarmaState.VNEGATIVE) {
-                    extraDecrease = 1; // +100% velocidade
+        }
+
+        if (level.getWeatherData() != null) {
+            WeatherData wData = level.getWeatherData();
+            
+            if (karmaElapsed >= 180000) {
+                int clearTime = wData.getClearWeatherTime();
+                if (clearTime > 0) {
+                    int extraDecrease = 0;
+                    if (current == KarmaState.SNEGATIVE) {
+                        if (level.getRandom().nextFloat() < 0.20f) extraDecrease = 1;
+                    } else if (current == KarmaState.NEGATIVE) {
+                        if (level.getRandom().nextFloat() < 0.50f) extraDecrease = 1;
+                    } else if (current == KarmaState.VNEGATIVE) {
+                        extraDecrease = 1;
+                    }
+                    if (extraDecrease > 0) {
+                        wData.setClearWeatherTime(Math.max(0, clearTime - extraDecrease));
+                    }
                 }
+            }
+
+            // Logica da probabilidade de Trovoada
+            boolean isRaining = wData.isRaining();
+            if (!isRaining) {
+                thunderCheckedForCurrentStorm = false;
+            } else if (!thunderCheckedForCurrentStorm) {
+                thunderCheckedForCurrentStorm = true;
                 
-                if (extraDecrease > 0) {
-                    level.getWeatherData().setClearWeatherTime(Math.max(0, clearTime - extraDecrease));
+                float thunderChance = 0.0f;
+                if (current == KarmaState.NEGATIVE) thunderChance = 0.25f;
+                else if (current == KarmaState.VNEGATIVE) thunderChance = 0.70f;
+                
+                if (level.getRandom().nextFloat() < thunderChance) {
+                    wData.setThundering(true);
+                    wData.setThunderTime(wData.getRainTime());
                 }
             }
         }
 
         int radius = (current == KarmaState.VNEGATIVE) ? 2 : 1;
+        int vegRadius = (current == KarmaState.VNEGATIVE) ? 3 : (current == KarmaState.NEGATIVE) ? 2 : 1;
+        
+        float destroyChance = 0.0f;
+        if (current == KarmaState.SNEGATIVE) destroyChance = 0.05f;
+        else if (current == KarmaState.NEGATIVE) destroyChance = 0.20f;
+        else if (current == KarmaState.VNEGATIVE) destroyChance = 0.40f;
+
         BlockPos basePos = player.blockPosition();
-        for (int dy = -1; dy <= 0; dy++) {
-            for (int dx = -radius; dx <= radius; dx++) {
-                for (int dz = -radius; dz <= radius; dz++) {
-                    if (dx * dx + dz * dz <= radius * radius) {
-                        BlockPos targetPos = basePos.offset(dx, dy, dz);
-                        BlockState targetState = level.getBlockState(targetPos);
+        for (int dy = -1; dy <= 2; dy++) {
+            for (int dx = -Math.max(radius, vegRadius); dx <= Math.max(radius, vegRadius); dx++) {
+                for (int dz = -Math.max(radius, vegRadius); dz <= Math.max(radius, vegRadius); dz++) {
+                    double distSq = dx * dx + dz * dz;
+                    BlockPos targetPos = basePos.offset(dx, dy, dz);
+                    BlockState targetState = level.getBlockState(targetPos);
+
+                    if (dy <= 0 && distSq <= radius * radius) {
                         if (targetState.is(Blocks.GRASS_BLOCK)) {
                             BlockState newState;
                             boolean isTemporary;
@@ -121,11 +142,24 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
                             }
                         }
                     }
+
+                    if (distSq <= vegRadius * vegRadius) {
+                        if (targetState.is(BlockTags.FLOWERS) || 
+                            targetState.is(BlockTags.LEAVES) || 
+                            targetState.is(Blocks.SHORT_GRASS) || 
+                            targetState.is(Blocks.TALL_GRASS) || 
+                            targetState.is(Blocks.FERN) || 
+                            targetState.is(Blocks.LARGE_FERN)) {
+                            
+                            if (level.getRandom().nextFloat() < destroyChance) {
+                                level.destroyBlock(targetPos, false);
+                            }
+                        }
+                    }
                 }
             }
         }
 
-        // Murchamento e dessecação de culturas exclusivo de NEGATIVE e VNEGATIVE
         int attempts = switch (current) {
             case VNEGATIVE -> 3;
             case NEGATIVE -> 2;

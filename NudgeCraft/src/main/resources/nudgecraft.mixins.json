@@ -7,12 +7,17 @@
     "AnimalMixin",
     "PlayerDestroySpeedMixin",
     "PlayerHungerMixin",
-    "LevelWeatherMixin",
     "PlayerAttackMixin",
     "PlayerJumpMixin",
-    "FoodDataMixin"
+    "FoodDataMixin",
+    "MobMixin",
+    "LevelWeatherMixin",
+    "LevelAccessor"
   ],
-  "client": [],
+  "client": [
+    "WeatherEffectRendererMixin",
+    "ClientLevelMixin"
+  ],
   "injectors": {
     "defaultRequire": 1
   }
