@@ -24,33 +24,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class HudMixin {
     @Shadow public abstract boolean isHidden();
 
-    @Inject(method = "extractRenderState", at = @At("HEAD"))
-    private void renderWarmCameraFilter(GuiGraphicsExtractor graphicsExtractor, DeltaTracker deltaTracker, CallbackInfo ci) {
-        if (!isHidden()) {
-            KarmaState karma = KarmaHudOverlay.getClientKarma();
-            if (karma == KarmaState.SPOSITIVE || karma == KarmaState.POSITIVE || karma == KarmaState.VPOSITIVE) {
-                net.minecraft.client.Minecraft client = net.minecraft.client.Minecraft.getInstance();
-                if (client.level != null && !client.level.isDarkOutside()) {
-                    int width = client.getWindow().getGuiScaledWidth();
-                    int height = client.getWindow().getGuiScaledHeight();
-
-                    // Adicionar película de cor (overlay) para aquecer e "saturar" a visão
-                    // Laranja Quente: R=255, G=140, B=0
-                    int color = switch (karma) {
-                        case VPOSITIVE -> 0x40FF8C00; // ~25% opacidade
-                        case POSITIVE  -> 0x26FF8C00; // ~15% opacidade
-                        case SPOSITIVE -> 0x14FF8C00; // ~8% opacidade
-                        default -> 0x00000000;
-                    };
-
-                    if (color != 0x00000000) {
-                        graphicsExtractor.fill(0, 0, width, height, color);
-                    }
-                }
-            }
-        }
-    }
-
     @Inject(method = "extractRenderState", at = @At("TAIL"))
     private void renderKarmaHud(GuiGraphicsExtractor graphicsExtractor, DeltaTracker deltaTracker, CallbackInfo ci) {
         if (!isHidden()) {

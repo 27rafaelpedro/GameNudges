@@ -6,7 +6,8 @@
     "HudMixin",
     "FogRendererMixin",
     "SunsetAtmosphereMixin",
-    "SkyRendererMixin"
+    "SkyRendererMixin",
+    "GameRendererMixin"
   ],
   "injectors": {
     "defaultRequire": 1
