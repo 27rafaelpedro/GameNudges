@@ -17,14 +17,12 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Gestor de Fadiga e Exaustão Temporária para os estados de Karma Negativo:
- * - SNEGATIVE: 3% de probabilidade em ações (minerar, atacar, correr, saltar)
- * - NEGATIVE:  8% de probabilidade em ações
- * - VNEGATIVE: 12% de probabilidade em ações
+ * Gestor de Fadiga e Exaustão Temporária para o estado Karma Muito Negativo:
+ * - VNEGATIVE: 12% de probabilidade em ações (minerar, atacar, correr, saltar)
  *
  * Ao sofrer fadiga, o jogador tem a velocidade de mineração, ataque, movimento e salto
  * reduzidas em 50% durante 4 segundos, com a mensagem:
- * "A negligência da movimentação deixa-te desleixado.."
+ * "O cansaço consome temporariamente as tuas forças..."
  */
 public final class FatigueManager {
 
@@ -85,12 +83,10 @@ public final class FatigueManager {
         }
 
         KarmaState current = KarmaEffectManager.getCurrentKarma();
-        float chance = switch (current) {
-            case SNEGATIVE -> 0.03f; // 3%
-            case NEGATIVE -> 0.08f;  // 8%
-            case VNEGATIVE -> 0.12f; // 12%
-            default -> 0.0f;
-        };
+        float chance = 0.0f;
+        if (current == KarmaState.VNEGATIVE) {
+            chance = 0.12f; // 12% exclusivo para Very Negative
+        }
 
         if (chance > 0.0f && level.getRandom().nextFloat() < chance) {
             triggerFatigue(player, level, uuid);
@@ -105,7 +101,7 @@ public final class FatigueManager {
 
         // Mensagem enviada na Action Bar
         player.sendSystemMessage(
-                Component.literal("§cA negligência da movimentação deixa-te desleixado.."),
+                Component.literal("§cSentes-te pesado.."),
                 true
         );
 

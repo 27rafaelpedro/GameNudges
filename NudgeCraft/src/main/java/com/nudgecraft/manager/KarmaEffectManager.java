@@ -134,14 +134,19 @@ public final class KarmaEffectManager {
         UUID uuid = player.getUUID();
         int ticks = PLAY_TIME_TICKS.getOrDefault(uuid, 0) + 1;
 
-        if (ticks >= 36000) {
+        if (ticks % 36000 == 0 && ticks > 0) {
+            int halfHours = ticks / 36000;
+            String timeStr = "";
+            if (halfHours == 1) timeStr = "30 minutos";
+            else if (halfHours == 2) timeStr = "1 hora";
+            else if (halfHours % 2 == 0) timeStr = (halfHours / 2) + " horas";
+            else timeStr = (halfHours / 2) + "h30";
+            
             player.sendSystemMessage(
-                    Component.literal("§6Já estás a jogar há 30 minutos! Lembra-te de fazer uma pausa e manter-te ativo.")
+                    Component.literal("§6Já estás a jogar há " + timeStr + "! Lembra-te de fazer uma pausa e manter-te ativo.")
             );
-            PLAY_TIME_TICKS.put(uuid, 0);
-        } else {
-            PLAY_TIME_TICKS.put(uuid, ticks);
         }
+        PLAY_TIME_TICKS.put(uuid, ticks);
     }
 
     private static final Map<UUID, Integer> FLOWER_MSG_TICKS = new ConcurrentHashMap<>();

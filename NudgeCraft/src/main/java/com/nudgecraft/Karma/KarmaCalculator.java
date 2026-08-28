@@ -129,7 +129,7 @@ public final class KarmaCalculator {
                                         updatePlayerKarma(username, currentKarma, karmaBeforeLast, lastProcessedString, goal);
                                     }
 
-                                    sendWelcomeOrStatus(player, server, username, currentKarma, isLogin, daysProcessedCount, lastDaySteps);
+                                    sendWelcomeOrStatus(player, server, username, currentKarma, isLogin, daysProcessedCount, lastDaySteps, goal);
                                     result.complete(currentKarma);
                                 }))
                 .exceptionally(ex -> {
@@ -137,7 +137,7 @@ public final class KarmaCalculator {
                     if (!isLogin) {
                         PlayerProfileManager.erro(player, server, "Erro ao comunicar com o Firestore.");
                     }
-                    sendWelcomeOrStatus(player, server, username, KarmaState.BASE, isLogin, 0, 0);
+                    sendWelcomeOrStatus(player, server, username, KarmaState.BASE, isLogin, 0, 0, 0);
                     result.complete(KarmaState.BASE);
                     return null;
                 });
@@ -155,7 +155,8 @@ public final class KarmaCalculator {
             KarmaState karma,
             boolean isLogin,
             int daysProcessedCount,
-            long lastDaySteps
+            long lastDaySteps,
+            long goal
     ) {
         FirebaseManager.onServerThread(server, () -> {
             ServerPlayNetworking.send(player, new KarmaPayload(karma.name()));
@@ -165,26 +166,19 @@ public final class KarmaCalculator {
             if (isLogin) {
                 com.nudgecraft.manager.KarmaEffectManager.setServerLoginTime(System.currentTimeMillis());
 
-                if (daysProcessedCount > 1) {
-                    player.sendSystemMessage(Component.literal("Estiveste fora " + daysProcessedCount + " dias! O teu Karma foi atualizado com base nos teus passos diários.")
-                            .withStyle(ChatFormatting.GOLD));
-                }
-
                 switch (karma) {
                     case BASE -> {
                         player.sendSystemMessage(Component.literal("Bem-vindo/a ")
                                 .withStyle(ChatFormatting.AQUA)
                                 .append(Component.literal(username).withStyle(ChatFormatting.YELLOW, ChatFormatting.BOLD))
-                                .append(Component.literal("! Este é o começo da tua aventura fitness no NudgeCraft!").withStyle(ChatFormatting.AQUA)));
+                                .append(Component.literal("! Lembra-te que o ritmo do teu dia-a-dia reflete-se neste mundo.").withStyle(ChatFormatting.AQUA)));
                     }
-                    case VNEGATIVE, NEGATIVE, SNEGATIVE -> {
-                        player.sendSystemMessage(Component.literal("O mundo à tua volta está a perder a sua cor... Fizeste " + lastDaySteps + " passos no último dia avaliado.")
-                                .withStyle(ChatFormatting.RED));
-                    }
-                    case SPOSITIVE, POSITIVE, VPOSITIVE -> {
-                        player.sendSystemMessage(Component.literal("O mundo à tua volta parece mais radiante e cheio de vida! Fizeste " + lastDaySteps + " passos no último dia avaliado.")
-                                .withStyle(ChatFormatting.GREEN));
-                    }
+                    case SPOSITIVE -> player.sendSystemMessage(Component.literal("Sentes-te mais leve e o mundo à tua volta parece mais radiante! Ontem fizeste " + lastDaySteps + " passos.").withStyle(ChatFormatting.GREEN));
+                    case POSITIVE -> player.sendSystemMessage(Component.literal("Notas a tua agilidade e a natureza ganha vida! Ontem fizeste " + lastDaySteps + " passos.").withStyle(ChatFormatting.GREEN));
+                    case VPOSITIVE -> player.sendSystemMessage(Component.literal("Sentes-te cheio de energia e o mundo floresce à tua volta! Ontem fizeste " + lastDaySteps + " passos.").withStyle(ChatFormatting.GREEN));
+                    case SNEGATIVE -> player.sendSystemMessage(Component.literal("O ambiente hoje parece um pouco mais cinzento. Ontem fizeste " + lastDaySteps + " passos.").withStyle(ChatFormatting.RED));
+                    case NEGATIVE -> player.sendSystemMessage(Component.literal("Sentes o corpo rígido e o mundo sombrio. Ontem fizeste " + lastDaySteps + " passos.").withStyle(ChatFormatting.RED));
+                    case VNEGATIVE -> player.sendSystemMessage(Component.literal("Surges exausto e a natureza seca à tua passagem. Ontem fizeste " + lastDaySteps + " passos.").withStyle(ChatFormatting.RED));
                 }
             } else {
                 ChatFormatting cor = switch (karma) {

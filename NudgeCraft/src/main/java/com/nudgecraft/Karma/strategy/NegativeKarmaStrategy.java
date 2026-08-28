@@ -89,6 +89,20 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
                 if (level.getRandom().nextFloat() < thunderChance) {
                     wData.setThundering(true);
                     wData.setThunderTime(wData.getRainTime());
+                    
+                    for (net.minecraft.server.level.ServerPlayer p : level.players()) {
+                        p.sendSystemMessage(
+                                net.minecraft.network.chat.Component.literal("§c§oO clima torna-se mais intenso.."),
+                                true
+                        );
+                    }
+                } else {
+                    for (net.minecraft.server.level.ServerPlayer p : level.players()) {
+                        p.sendSystemMessage(
+                                net.minecraft.network.chat.Component.literal("§8§oAs nuvens abrem a chuva.."),
+                                true
+                        );
+                    }
                 }
             }
         }
@@ -102,14 +116,16 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
         else if (current == KarmaState.VNEGATIVE) destroyChance = 0.40f;
 
         BlockPos basePos = player.blockPosition();
-        for (int dy = -1; dy <= 2; dy++) {
+        for (int dy = -1; dy <= 6; dy++) {
             for (int dx = -Math.max(radius, vegRadius); dx <= Math.max(radius, vegRadius); dx++) {
                 for (int dz = -Math.max(radius, vegRadius); dz <= Math.max(radius, vegRadius); dz++) {
                     double distSq = dx * dx + dz * dz;
+                    double sphereSq = distSq + (dy > 0 ? dy * dy : 0); // Cilindro em baixo, semi-esfera em cima
+                    
                     BlockPos targetPos = basePos.offset(dx, dy, dz);
                     BlockState targetState = level.getBlockState(targetPos);
 
-                    if (dy <= 0 && distSq <= radius * radius) {
+                    if (dy <= 1 && distSq <= radius * radius) {
                         if (targetState.is(Blocks.GRASS_BLOCK)) {
                             BlockState newState;
                             boolean isTemporary;
@@ -143,7 +159,7 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
                         }
                     }
 
-                    if (distSq <= vegRadius * vegRadius) {
+                    if (sphereSq <= vegRadius * vegRadius) {
                         if (targetState.is(BlockTags.FLOWERS) || 
                             targetState.is(BlockTags.LEAVES) || 
                             targetState.is(Blocks.SHORT_GRASS) || 
