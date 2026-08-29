@@ -19,6 +19,10 @@ import org.slf4j.LoggerFactory;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.minecraft.server.level.ServerPlayer;
 
+import com.nudgecraft.firebase.LogNudgePayload;
+import com.nudgecraft.firebase.NudgeLogger;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+
 public class Nudgecraft implements ModInitializer {
 
     public static final String MOD_ID = "nudgecraft";
@@ -28,6 +32,14 @@ public class Nudgecraft implements ModInitializer {
     public void onInitialize() {
         PayloadTypeRegistry.clientboundPlay().register(KarmaPayload.TYPE, KarmaPayload.CODEC);
         PayloadTypeRegistry.clientboundPlay().register(NudgeBlinkPayload.TYPE, NudgeBlinkPayload.CODEC);
+
+        PayloadTypeRegistry.serverboundPlay().register(LogNudgePayload.TYPE, LogNudgePayload.CODEC);
+        ServerPlayNetworking.registerGlobalReceiver(LogNudgePayload.TYPE, (payload, context) -> {
+            context.server().execute(() -> {
+                NudgeLogger.log(context.player(), payload.isPositive(), payload.featureId());
+            });
+        });
+
         ModCommands.registar();
         com.nudgecraft.event.BlockBreakEventHandler.init();
         com.nudgecraft.event.FallDamageEventHandler.init();

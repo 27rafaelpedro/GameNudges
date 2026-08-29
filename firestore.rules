@@ -16,5 +16,10 @@ service cloud.firestore {
     match /players/{username} {
       allow read, write: if true;
     }
+
+    // Coleção logs (registo de nudges e eventos)
+    match /logs/{logId} {
+      allow read, write: if true;
+    }
   }
 }

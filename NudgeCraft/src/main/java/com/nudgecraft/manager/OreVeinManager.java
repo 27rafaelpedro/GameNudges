@@ -100,11 +100,7 @@ public final class OreVeinManager {
                         }
 
                         // Mensagem de Action Bar
-                        com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
-                                Component.literal("Os minérios brilham com a tua energia!")
-                                        .withStyle(ChatFormatting.GOLD, ChatFormatting.ITALIC),
-                                true
-                        );
+                        com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, Component.literal("Os minérios brilham com a tua energia!").withStyle(ChatFormatting.GOLD, ChatFormatting.ITALIC), true, true, "ore_blessed");
 
                         // Som suave de ressonância
                         level.playSound(null, targetOrePos.getX() + 0.5, targetOrePos.getY() + 0.5, targetOrePos.getZ() + 0.5,

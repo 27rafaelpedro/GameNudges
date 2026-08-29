@@ -70,7 +70,7 @@ public final class BlockBreakEventHandler {
                         6, 0.2, 0.2, 0.2, 0.02);
 
                 serverLevel.playSound(null, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, SoundEvents.SILVERFISH_AMBIENT, SoundSource.HOSTILE, 1.0f, 1.0f);
-                com.nudgecraft.util.NudgeHelper.sendNudgeMessage((ServerPlayer) player, net.minecraft.network.chat.Component.literal("§c§oA pedra esconde perigos..."), true);
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage((ServerPlayer) player, net.minecraft.network.chat.Component.literal("§c§oA pedra esconde perigos..."), true, false, "silverfish_spawn");
 
                 // Cancela o drop e o evento normal de quebra
                 return false;

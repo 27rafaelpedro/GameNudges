@@ -88,20 +88,12 @@ public final class FireflyLightingManager {
 
         if (karma == KarmaState.VPOSITIVE) {
             if (isNight) {
-                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
-                        Component.literal("A natureza ilumina o teu caminho!")
-                                .withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC),
-                        true
-                );
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, Component.literal("A natureza ilumina o teu caminho!").withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC), true, true, "fireflies_spawned");
                 LIGHT_MSG_COOLDOWN.put(uuid, MSG_COOLDOWN_TICKS);
             }
         } else if (karma == KarmaState.VNEGATIVE) {
             if (isNight) {
-                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
-                        Component.literal("A tua visão falha..")
-                                .withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC),
-                        true
-                );
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, Component.literal("A tua visão falha..").withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC), true, false, "fog_blindness");
                 level.sendParticles(ParticleTypes.SMOKE,
                         player.getX(), player.getY() + 1.2, player.getZ(),
                         5, 0.3, 0.3, 0.3, 0.01);

@@ -113,18 +113,10 @@ public final class KarmaEffectManager {
 
         if (!animals.isEmpty()) {
             if (current == KarmaState.VPOSITIVE || current == KarmaState.POSITIVE) {
-                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
-                        Component.literal("A tua energia atrai a vida selvagem!")
-                                .withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC),
-                        true
-                );
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, Component.literal("A tua energia atrai a vida selvagem!").withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC), true, true, "animals_attracted");
                 ANIMAL_MSG_COOLDOWNS.put(uuid, 900); // 45 segundos de cooldown
             } else if (current == KarmaState.VNEGATIVE || current == KarmaState.NEGATIVE) {
-                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
-                        Component.literal("A vida selvagem recua..")
-                                .withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC),
-                        true
-                );
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, Component.literal("A vida selvagem recua..").withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC), true, false, "animals_repelled");
                 ANIMAL_MSG_COOLDOWNS.put(uuid, 900); // 45 segundos de cooldown
             }
         }
@@ -142,9 +134,7 @@ public final class KarmaEffectManager {
             else if (halfHours % 2 == 0) timeStr = (halfHours / 2) + " horas";
             else timeStr = (halfHours / 2) + "h30";
             
-            com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
-                    Component.literal("§6Já estás a jogar há " + timeStr + "! Lembra-te de fazer uma pausa e manter-te ativo.")
-            );
+            com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, Component.literal("§6Já estás a jogar há " + timeStr + "! Lembra-te de fazer uma pausa e manter-te ativo."), false, false, "time_warning");
         }
         PLAY_TIME_TICKS.put(uuid, ticks);
     }
@@ -187,11 +177,8 @@ public final class KarmaEffectManager {
         if (ticks != null && ticks > 0) {
             HUNGER_MSG_TICKS.put(uuid, ticks - 1);
             if (ticks % 20 == 0 || ticks == 100) {
-                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
-                        Component.literal("O teu apetite aumenta..")
-                                .withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC),
-                        true
-                );
+                String log = (ticks == 100) ? "hunger_increased" : null;
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, Component.literal("O teu apetite aumenta..").withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC), true, false, log);
             }
         }
     }
@@ -211,11 +198,8 @@ public final class KarmaEffectManager {
         if (ticks != null && ticks > 0) {
             FLOWER_MSG_TICKS.put(uuid, ticks - 1);
             if (ticks % 20 == 0 || ticks == 100) { // Envia a cada segundo para manter no ecrã
-                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
-                        Component.literal("A natureza decora o teu caminho!")
-                                .withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC),
-                        true
-                );
+                String log = (ticks == 100) ? "flowers_spawned" : null;
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, Component.literal("A natureza decora o teu caminho!").withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC), true, true, log);
             }
         }
     }
@@ -252,19 +236,15 @@ public final class KarmaEffectManager {
 
     private static void sendCropActionBarMessage(ServerPlayer player) {
         KarmaState karma = getCurrentKarma();
-        Component msg = null;
+        
 
         if (karma == KarmaState.VPOSITIVE || karma == KarmaState.POSITIVE) {
-            msg = Component.literal("As tuas sementes crescem com a tua energia positiva!")
-                    .withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC);
+            com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, Component.literal("As tuas sementes crescem com a tua energia positiva!").withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC), true, true, "crops_grown");
         } else if (karma == KarmaState.VNEGATIVE || karma == KarmaState.NEGATIVE) {
-            msg = Component.literal("As sementes sofrem com a tua energia..")
-                    .withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC);
+            com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, Component.literal("As sementes sofrem com a tua energia..").withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC), true, false, "crops_withered");
         }
 
-        if (msg != null) {
-            com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, msg, true);
-        }
+        
     }
 
     private static void managePositiveSpeed(ServerPlayer player, ServerLevel level) {
