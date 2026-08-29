@@ -51,7 +51,7 @@ public final class BlockBreakEventHandler {
 
             if (isMiningBlock && level.getRandom().nextFloat() < 0.04f) { // 4% de probabilidade
                 // Remove o bloco primeiro para nao asfixiar nem fundir o silverfish
-                serverLevel.removeBlock(pos, false);
+                serverLevel.destroyBlock(pos, false);
                 
                 Entity silverfish = EntityTypes.SILVERFISH.spawn(serverLevel, pos, EntitySpawnReason.EVENT);
                 if (silverfish != null) {
@@ -69,8 +69,8 @@ public final class BlockBreakEventHandler {
                 serverLevel.sendParticles(ParticleTypes.SMOKE, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
                         6, 0.2, 0.2, 0.2, 0.02);
 
-                serverLevel.playSound(null, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5,
-                        SoundEvents.SILVERFISH_AMBIENT, SoundSource.HOSTILE, 1.0f, 1.0f);
+                serverLevel.playSound(null, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, SoundEvents.SILVERFISH_AMBIENT, SoundSource.HOSTILE, 1.0f, 1.0f);
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage((ServerPlayer) player, net.minecraft.network.chat.Component.literal("§c§oA pedra esconde perigos..."), true);
 
                 // Cancela o drop e o evento normal de quebra
                 return false;
