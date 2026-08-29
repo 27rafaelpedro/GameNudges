@@ -91,14 +91,14 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
                     wData.setThunderTime(wData.getRainTime());
                     
                     for (net.minecraft.server.level.ServerPlayer p : level.players()) {
-                        p.sendSystemMessage(
+                        com.nudgecraft.util.NudgeHelper.sendNudgeMessage(p, 
                                 net.minecraft.network.chat.Component.literal("§c§oO clima torna-se mais intenso.."),
                                 true
                         );
                     }
                 } else {
                     for (net.minecraft.server.level.ServerPlayer p : level.players()) {
-                        p.sendSystemMessage(
+                        com.nudgecraft.util.NudgeHelper.sendNudgeMessage(p, 
                                 net.minecraft.network.chat.Component.literal("§8§oAs nuvens abrem a chuva.."),
                                 true
                         );

@@ -88,7 +88,7 @@ public final class FireflyLightingManager {
 
         if (karma == KarmaState.VPOSITIVE) {
             if (isNight) {
-                player.sendSystemMessage(
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
                         Component.literal("A natureza ilumina o teu caminho!")
                                 .withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC),
                         true
@@ -97,7 +97,7 @@ public final class FireflyLightingManager {
             }
         } else if (karma == KarmaState.VNEGATIVE) {
             if (isNight) {
-                player.sendSystemMessage(
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
                         Component.literal("A tua visão falha..")
                                 .withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC),
                         true

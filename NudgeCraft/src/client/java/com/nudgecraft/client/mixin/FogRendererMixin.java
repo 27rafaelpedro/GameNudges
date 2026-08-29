@@ -54,6 +54,7 @@ public abstract class FogRendererMixin {
                         if (!hasWarnedVision) {
                             hasWarnedVision = true;
                             client.gui.hud.setOverlayMessage(net.minecraft.network.chat.Component.literal("§c§oA tua visao esta cansada..."), false);
+                            com.nudgecraft.Karma.KarmaHudOverlay.triggerLocalBlink();
                         }
                     }
                 }

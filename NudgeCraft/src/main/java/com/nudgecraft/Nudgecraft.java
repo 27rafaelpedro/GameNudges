@@ -4,6 +4,7 @@ import com.nudgecraft.Karma.KarmaCalculator;
 import com.nudgecraft.command.ModCommands;
 import com.nudgecraft.firebase.FirebaseManager;
 import com.nudgecraft.Karma.KarmaPayload;
+import com.nudgecraft.Karma.NudgeBlinkPayload;
 import com.nudgecraft.manager.FatigueManager;
 import com.nudgecraft.manager.KarmaEffectManager;
 import com.nudgecraft.manager.TemporaryBlockManager;
@@ -26,6 +27,7 @@ public class Nudgecraft implements ModInitializer {
     @Override
     public void onInitialize() {
         PayloadTypeRegistry.clientboundPlay().register(KarmaPayload.TYPE, KarmaPayload.CODEC);
+        PayloadTypeRegistry.clientboundPlay().register(NudgeBlinkPayload.TYPE, NudgeBlinkPayload.CODEC);
         ModCommands.registar();
         com.nudgecraft.event.BlockBreakEventHandler.init();
         com.nudgecraft.event.FallDamageEventHandler.init();

@@ -113,14 +113,14 @@ public final class KarmaEffectManager {
 
         if (!animals.isEmpty()) {
             if (current == KarmaState.VPOSITIVE || current == KarmaState.POSITIVE) {
-                player.sendSystemMessage(
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
                         Component.literal("A tua energia atrai a vida selvagem!")
                                 .withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC),
                         true
                 );
                 ANIMAL_MSG_COOLDOWNS.put(uuid, 900); // 45 segundos de cooldown
             } else if (current == KarmaState.VNEGATIVE || current == KarmaState.NEGATIVE) {
-                player.sendSystemMessage(
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
                         Component.literal("A vida selvagem recua..")
                                 .withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC),
                         true
@@ -142,7 +142,7 @@ public final class KarmaEffectManager {
             else if (halfHours % 2 == 0) timeStr = (halfHours / 2) + " horas";
             else timeStr = (halfHours / 2) + "h30";
             
-            player.sendSystemMessage(
+            com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
                     Component.literal("§6Já estás a jogar há " + timeStr + "! Lembra-te de fazer uma pausa e manter-te ativo.")
             );
         }
@@ -187,7 +187,7 @@ public final class KarmaEffectManager {
         if (ticks != null && ticks > 0) {
             HUNGER_MSG_TICKS.put(uuid, ticks - 1);
             if (ticks % 20 == 0 || ticks == 100) {
-                player.sendSystemMessage(
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
                         Component.literal("O teu apetite aumenta..")
                                 .withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC),
                         true
@@ -211,7 +211,7 @@ public final class KarmaEffectManager {
         if (ticks != null && ticks > 0) {
             FLOWER_MSG_TICKS.put(uuid, ticks - 1);
             if (ticks % 20 == 0 || ticks == 100) { // Envia a cada segundo para manter no ecrã
-                player.sendSystemMessage(
+                com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
                         Component.literal("A natureza decora o teu caminho!")
                                 .withStyle(net.minecraft.ChatFormatting.GREEN, net.minecraft.ChatFormatting.ITALIC),
                         true
@@ -263,7 +263,7 @@ public final class KarmaEffectManager {
         }
 
         if (msg != null) {
-            player.sendSystemMessage(msg, true);
+            com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, msg, true);
         }
     }
 

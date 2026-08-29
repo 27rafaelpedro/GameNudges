@@ -86,7 +86,7 @@ public class TimeSpeedManager {
             if (ticks != null && ticks > 0) {
                 NIGHT_MSG_TICKS.put(uuid, ticks - 1);
                 if (ticks % 20 == 0 || ticks == 100) {
-                    player.sendSystemMessage(
+                    com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
                             Component.literal("O dia passa a correr..")
                                     .withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC),
                             true

@@ -14,6 +14,7 @@ public final class KarmaHudOverlay {
 
     private static volatile KarmaState clientKarma = KarmaState.BASE;
     private static volatile long lastUpdateTime = 0;
+    private static volatile long blinkUntilTime = 0;
 
     private KarmaHudOverlay() {
     }
@@ -30,6 +31,22 @@ public final class KarmaHudOverlay {
                 KarmaStateHolder.set(clientKarma);
             });
         });
+
+        ClientPlayNetworking.registerGlobalReceiver(NudgeBlinkPayload.TYPE, (payload, context) -> {
+            context.client().execute(() -> {
+                blinkUntilTime = System.currentTimeMillis() + 3000;
+                if (System.currentTimeMillis() - lastUpdateTime >= 45000) {
+                    lastUpdateTime = System.currentTimeMillis() - 40000; // Torna o HUD visível por 5 segundos
+                }
+            });
+        });
+    }
+
+    public static void triggerLocalBlink() {
+        blinkUntilTime = System.currentTimeMillis() + 3000;
+        if (System.currentTimeMillis() - lastUpdateTime >= 45000) {
+            lastUpdateTime = System.currentTimeMillis() - 40000;
+        }
     }
 
     public static void setClientKarma(KarmaState karma) {
@@ -43,8 +60,9 @@ public final class KarmaHudOverlay {
     }
 
     public static void render(GuiGraphicsExtractor graphicsExtractor, DeltaTracker deltaTracker) {
+        long now = System.currentTimeMillis();
         // Exibe apenas nos primeiros 45 segundos (45.000 ms) após atualização do Karma
-        if (System.currentTimeMillis() - lastUpdateTime >= 45000) {
+        if (now - lastUpdateTime >= 45000) {
             return;
         }
 
@@ -71,13 +89,23 @@ public final class KarmaHudOverlay {
         int frameX = marginX; // Canto superior esquerdo (evita sobreposição com poções no topo direito)
         int frameY = marginY;
 
-        // 1. Desenha a moldura 22x22 (com relevo e fundo semi-transparente)
-        graphicsExtractor.blit(RenderPipelines.GUI_TEXTURED, TEX_FRAME, frameX, frameY, 0.0F, 0.0F, frameSize, frameSize, frameSize, frameSize);
+        // Se estiver dentro do tempo de piscar (3 segundos), esconder em metades de ciclo
+        boolean showIcon = true;
+        if (now < blinkUntilTime) {
+            if ((now % 500) > 250) {
+                showIcon = false;
+            }
+        }
 
-        // 2. Desenha o ícone 16x16 centrado dentro da moldura (+3px de margem interna)
-        int iconSize = 16;
-        int iconX = frameX + 3;
-        int iconY = frameY + 3;
-        graphicsExtractor.blit(RenderPipelines.GUI_TEXTURED, texture, iconX, iconY, 0.0F, 0.0F, iconSize, iconSize, iconSize, iconSize);
+        if (showIcon) {
+            // 1. Desenha a moldura 22x22 (com relevo e fundo semi-transparente)
+            graphicsExtractor.blit(RenderPipelines.GUI_TEXTURED, TEX_FRAME, frameX, frameY, 0.0F, 0.0F, frameSize, frameSize, frameSize, frameSize);
+
+            // 2. Desenha o ícone 16x16 centrado dentro da moldura (+3px de margem interna)
+            int iconSize = 16;
+            int iconX = frameX + 3;
+            int iconY = frameY + 3;
+            graphicsExtractor.blit(RenderPipelines.GUI_TEXTURED, texture, iconX, iconY, 0.0F, 0.0F, iconSize, iconSize, iconSize, iconSize);
+        }
     }
 }

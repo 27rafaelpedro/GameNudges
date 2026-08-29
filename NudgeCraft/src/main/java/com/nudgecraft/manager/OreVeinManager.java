@@ -100,7 +100,7 @@ public final class OreVeinManager {
                         }
 
                         // Mensagem de Action Bar
-                        player.sendSystemMessage(
+                        com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
                                 Component.literal("Os minérios brilham com a tua energia!")
                                         .withStyle(ChatFormatting.GOLD, ChatFormatting.ITALIC),
                                 true

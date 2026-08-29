@@ -100,7 +100,7 @@ public final class FatigueManager {
         COOLDOWN_TICKS.put(uuid, 3600);
 
         // Mensagem enviada na Action Bar
-        player.sendSystemMessage(
+        com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
                 Component.literal("§cSentes-te pesado.."),
                 true
         );
