@@ -38,7 +38,7 @@ To play the mod, you must install the Fabric Loader and add the necessary .jar f
 2. **Download the Mods:**
    * Go to the **[Releases](../../releases)** tab in this repository.
    * Download the 
-udgecraft-1.0.0.jar and abric-api.jar files.
+nudgecraft-1.0.0.jar and fabric-api.jar files.
 
 3. **Add to Mods Folder:** 
    * On Windows, press Win + R, type %appdata%\.minecraft\mods and press Enter. 
