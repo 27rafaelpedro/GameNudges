@@ -77,6 +77,7 @@ public final class KarmaEffectManager {
     }
 
     public static void tick(ServerPlayer player, ServerLevel level) {
+        com.nudgecraft.util.NudgeMessageQueue.tick(player);
         managePositiveSpeed(player, level);
         TimeSpeedManager.tick(level);
         manageAnimalProximity(player, level);
@@ -208,8 +209,8 @@ public final class KarmaEffectManager {
         UUID uuid = player.getUUID();
         CropMessageState state = CROP_MSG_STATES.computeIfAbsent(uuid, k -> new CropMessageState());
 
-        if (state.cooldownTicks == 0 && state.displayTicks == 0) {
-            state.displayTicks = 100;
+        if (state.cooldownTicks == 0) {
+            state.cooldownTicks = 600; // 30 seconds cooldown
             sendCropActionBarMessage(player);
         }
     }
@@ -220,17 +221,8 @@ public final class KarmaEffectManager {
         if (state == null) {
             return;
         }
-
         if (state.cooldownTicks > 0) {
             state.cooldownTicks--;
-        } else if (state.displayTicks > 0) {
-            state.displayTicks--;
-            if (state.displayTicks % 20 == 0 && state.displayTicks > 0) {
-                sendCropActionBarMessage(player);
-            }
-            if (state.displayTicks == 0) {
-                state.cooldownTicks = 200;
-            }
         }
     }
 

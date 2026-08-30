@@ -86,8 +86,10 @@ public class TimeSpeedManager {
             if (ticks != null && ticks > 0) {
                 NIGHT_MSG_TICKS.put(uuid, ticks - 1);
                 if (ticks % 20 == 0 || ticks == 100) {
-                    String log = (ticks == 100) ? "faster_day_cycle" : null;
-                    com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, Component.literal("O dia passa a correr..").withStyle(net.minecraft.ChatFormatting.RED, net.minecraft.ChatFormatting.ITALIC), true, false, log);
+                    if (ticks == 100) {
+                        Component msg = com.nudgecraft.util.NudgeMessages.getFasterNightMessage(player);
+                        if (msg != null) com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, msg, true, false, "faster_day_cycle");
+                    }
                 }
             }
         }

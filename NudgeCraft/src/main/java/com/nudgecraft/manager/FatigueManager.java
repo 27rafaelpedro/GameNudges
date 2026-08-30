@@ -101,7 +101,7 @@ public final class FatigueManager {
 
         // Mensagem enviada na Action Bar
         com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, 
-                Component.literal("§cSentes-te pesado.."),
+                Component.literal("§cSentes-te pesado"),
                 true, false, "fatigue"
         );
 

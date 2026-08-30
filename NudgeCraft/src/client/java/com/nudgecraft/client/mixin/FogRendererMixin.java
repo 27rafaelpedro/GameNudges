@@ -53,7 +53,7 @@ public abstract class FogRendererMixin {
                         // Enviar mensagem apenas a primeira vez na sessao para a action bar
                         if (!hasWarnedVision) {
                             hasWarnedVision = true;
-                            client.gui.hud.setOverlayMessage(net.minecraft.network.chat.Component.literal("§c§oA tua visao esta cansada..."), false);
+                            client.gui.hud.setOverlayMessage(net.minecraft.network.chat.Component.literal(com.nudgecraft.util.NudgeMessages.getBlindnessString()), false);
                             com.nudgecraft.Karma.KarmaHudOverlay.triggerLocalBlink();
                             net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking.send(new com.nudgecraft.firebase.LogNudgePayload(false, "fog_blindness"));
                         }

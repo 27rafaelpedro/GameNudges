@@ -51,7 +51,8 @@ public final class FallDamageEventHandler {
                             level.playSound(null, x, y, z, SoundEvents.WIND_CHARGE_BURST, SoundSource.PLAYERS, 1.2f, 1.1f);
 
                             // 5. Mensagem para o jogador (na action bar) a verde
-                            com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, Component.literal("§a§oO vento favorece a tua descida!"), true, true, "wind_fall_save");
+                            Component msg = com.nudgecraft.util.NudgeMessages.getFeatherFallMessage();
+                            if (msg != null) com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, msg, true, true, "wind_fall_save");
 
                             // 6. Reseta a distancia
                             player.resetFallDistance();

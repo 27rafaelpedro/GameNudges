@@ -91,11 +91,11 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
                     wData.setThunderTime(wData.getRainTime());
                     
                     for (net.minecraft.server.level.ServerPlayer p : level.players()) {
-                        com.nudgecraft.util.NudgeHelper.sendNudgeMessage(p, net.minecraft.network.chat.Component.literal("§c§oO clima torna-se mais intenso.."), true, false, "thunderstorms");
+                        com.nudgecraft.util.NudgeHelper.sendNudgeMessage(p, net.minecraft.network.chat.Component.literal("§c§oO clima torna-se mais intenso"), true, false, "thunderstorms");
                     }
                 } else {
                     for (net.minecraft.server.level.ServerPlayer p : level.players()) {
-                        com.nudgecraft.util.NudgeHelper.sendNudgeMessage(p, net.minecraft.network.chat.Component.literal("§8§oAs nuvens abrem a chuva.."), true, false, "rain_start");
+                        com.nudgecraft.util.NudgeHelper.sendNudgeMessage(p, net.minecraft.network.chat.Component.literal("§8§oAs nuvens abrem a chuva"), true, false, "rain_start");
                     }
                 }
             }
@@ -193,6 +193,9 @@ public class NegativeKarmaStrategy implements KarmaStrategy {
 
                 if (state.is(BlockTags.FLOWERS)) {
                     level.setBlockAndUpdate(pos, Blocks.DEAD_BUSH.defaultBlockState());
+
+                    net.minecraft.network.chat.Component msg = com.nudgecraft.util.NudgeMessages.getBushMessage(player);
+                    if (msg != null) com.nudgecraft.util.NudgeHelper.sendNudgeMessage(player, msg, true, false, "bush_spawned");
 
                     float pitch = 0.7f + level.getRandom().nextFloat() * 0.2f;
                     level.playSound(null, pos, SoundEvents.CROP_BREAK, SoundSource.BLOCKS, 0.75f, pitch);
