@@ -47,5 +47,5 @@ nudgecraft-1.0.0.jar and fabric-api.jar files.
 
 4. **Launch the Game:** 
    * Open the official Minecraft Launcher.
-   * Select the newly created **Fabric** profile in the bottom left corner.
+   * Select the newly created **Fabric** profile in Minecraft Java in the versions tab.
    * Click **Play** and enjoy the mod!
